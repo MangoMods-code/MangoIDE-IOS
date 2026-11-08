@@ -125,6 +125,7 @@ struct NewProjectSheet: View {
     @State private var name = ""
     @State private var languageID = "python"
     @State private var error: String?
+    @State private var inMyFolder = true
 
     private var languages: [LanguageDef] { extensions.allLanguages.filter { $0.template != nil } }
 
@@ -134,7 +135,15 @@ struct NewProjectSheet: View {
                 Section {
                     TextField("Project name", text: $name).autocorrectionDisabled()
                 } footer: {
-                    Text("Creates Projects/\(name.isEmpty ? "…" : name) with a starter file\(settings.projectReadme ? ", README" : "")\(settings.projectGitignore ? " and .gitignore" : "").")
+                    Text("Creates a \(name.isEmpty ? "new" : "\"\(name)\"") folder with a starter file\(settings.projectReadme ? ", README" : "")\(settings.projectGitignore ? " and .gitignore" : "").")
+                }
+                if let pr = workspace.projectsRoot {
+                    Section("Location") {
+                        Picker("Create In", selection: $inMyFolder) {
+                            Text(pr.lastPathComponent).tag(true)
+                            Text("MangoIDE › Projects").tag(false)
+                        }
+                    }
                 }
                 Section("Language") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
@@ -178,7 +187,10 @@ struct NewProjectSheet: View {
 
     private func create() {
         do {
-            let main = try workspace.createProject(named: name, language: extensions.language(id: languageID))
+            let useMine = inMyFolder && workspace.projectsRoot != nil
+            let main = try workspace.createProject(named: name, language: extensions.language(id: languageID),
+                                                   in: useMine ? workspace.projectsRoot : workspace.projectsFolder)
+            if useMine { workspace.openProject(main.deletingLastPathComponent()) }
             editor.open(main)
             settings.haptic()
             router.sidebarOpen = UIDevice.current.userInterfaceIdiom == .pad
@@ -359,5 +371,91 @@ struct WebView: UIViewRepresentable {
         } else if let html = item.html {
             wv.loadHTMLString(html, baseURL: nil)
         }
+    }
+}
+
+
+// MARK: - Projects folder browser
+
+struct ProjectsSheet: View {
+    @EnvironmentObject var workspace: Workspace
+    @EnvironmentObject var editor: EditorState
+    @EnvironmentObject var router: Router
+    @Environment(\.dismiss) var dismiss
+    @State private var query = ""
+    @State private var projects: [FileItem] = []
+    @State private var sortByName = false
+
+    private var shown: [FileItem] {
+        let list = sortByName ? projects.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } : projects
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return q.isEmpty ? list : list.filter { $0.name.localizedCaseInsensitiveContains(q) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if workspace.projectsRoot == nil {
+                    Button("Choose Projects Folder…") { dismiss(); router.show(.pickProjectsFolder) }
+                }
+                ForEach(shown) { p in
+                    Button { open(p.url) } label: {
+                        HStack {
+                            Image(systemName: "shippingbox.fill").foregroundStyle(Color.accentColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(p.name).foregroundStyle(.primary)
+                                if let d = p.modified {
+                                    Text(d, style: .relative).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            if workspace.activeProject?.standardizedFileURL == p.url.standardizedFileURL {
+                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $query, prompt: "Search projects")
+            .navigationTitle(workspace.projectsRoot?.lastPathComponent ?? "Projects")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker("Sort", selection: $sortByName) {
+                            Text("Recently Changed").tag(false)
+                            Text("Name").tag(true)
+                        }
+                        Button { dismiss(); router.show(.newProject) } label: { Label("New Project", systemImage: "plus") }
+                        Button { dismiss(); router.show(.pickProjectsFolder) } label: { Label("Change Projects Folder…", systemImage: "folder") }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
+            }
+            .overlay {
+                if projects.isEmpty && workspace.projectsRoot != nil {
+                    Text("No project folders found.").foregroundStyle(.secondary)
+                }
+            }
+            .onAppear {
+                let ws = workspace
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let list = ws.projects()
+                    DispatchQueue.main.async { projects = list }
+                }
+            }
+        }
+    }
+
+    private func open(_ url: URL) {
+        workspace.openProject(url)
+        // Open a likely entry file so there's something on screen.
+        let files = workspace.children(of: url).filter { !$0.isDirectory }
+        let preferred = ["README.md", "readme.md", "main.py", "main.js", "index.html", "main.swift", "index.js", "app.py"]
+        if let f = preferred.compactMap({ name in files.first { $0.name == name } }).first {
+            editor.open(f.url)
+        }
+        router.sidebarOpen = true
+        dismiss()
     }
 }

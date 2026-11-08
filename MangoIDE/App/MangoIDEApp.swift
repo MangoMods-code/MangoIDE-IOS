@@ -45,6 +45,7 @@ struct MangoIDEApp: App {
 enum AppSheet: Identifiable {
     case newFile(URL), newFolder(URL), newProject, settings, extensions, snippets
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
+    case projects, pickProjectsFolder
 
     var id: String {
         switch self {
@@ -59,6 +60,8 @@ enum AppSheet: Identifiable {
         case .linkFolder: return "linkFolder"
         case .installExtensionFile: return "installExt"
         case .importArchive: return "importArchive"
+        case .projects: return "projects"
+        case .pickProjectsFolder: return "pickProjectsFolder"
         }
     }
 }
@@ -108,6 +111,13 @@ final class Router: ObservableObject {
                 self?.revealRequest = u
                 self?.sidebarOpen = true
                 self?.flash("Opened \(u.lastPathComponent)")
+            }
+        case .pickProjectsFolder:
+            FilePicker.present(types: [.folder], multiple: false, asCopy: false) { [weak self] urls in
+                guard let u = urls.first else { return }
+                Workspace.shared.setProjectsRoot(u)
+                self?.sidebarOpen = true
+                self?.flash("Projects folder set to \(u.lastPathComponent)")
             }
         case .importArchive:
             let types: [UTType] = [.zip, UTType("com.rarlab.rar-archive"), UTType(filenameExtension: "rar"), .archive].compactMap { $0 }

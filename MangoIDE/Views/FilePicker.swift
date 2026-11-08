@@ -33,9 +33,16 @@ enum FilePicker {
     /// Keeps the delegate alive while the picker is on screen.
     private static var active: Delegate?
 
-    static func present(types: [UTType], multiple: Bool, asCopy: Bool, onPick: @escaping ([URL]) -> Void) {
+    static func present(types: [UTType], multiple: Bool, asCopy: Bool, attempt: Int = 0, onPick: @escaping ([URL]) -> Void) {
         DispatchQueue.main.async {
             guard let top = topViewController() else { return }
+            // If a sheet is still closing, wait for it so the picker isn't silently refused.
+            if (top.presentedViewController?.isBeingDismissed == true || top.isBeingDismissed) && attempt < 8 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    present(types: types, multiple: multiple, asCopy: asCopy, attempt: attempt + 1, onPick: onPick)
+                }
+                return
+            }
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: asCopy)
             picker.allowsMultipleSelection = multiple
             picker.shouldShowFileExtensions = true

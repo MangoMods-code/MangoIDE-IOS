@@ -128,6 +128,7 @@ struct RootView: View {
             case .settings: SettingsView()
             case .extensions: NavigationStack { ExtensionsView() }
             case .snippets: SnippetsSheet()
+            case .projects: ProjectsSheet()
             default:
                 EmptyView()
             }
@@ -210,6 +211,11 @@ struct TopBar: View {
                 Button { router.show(.importFiles(nil)) } label: { Label("Import Files…", systemImage: "square.and.arrow.down") }
                 Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
                 Button { router.show(.importArchive) } label: { Label("Import ZIP / RAR…", systemImage: "doc.zipper") }
+            }
+            Section {
+                Button { router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects) } label: {
+                    Label(workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…", systemImage: "square.grid.2x2")
+                }
             }
             Section {
                 Button { if editor.saveActive() { settings.haptic(); router.flash("Saved") } } label: { Label("Save", systemImage: "square.and.arrow.down.on.square") }

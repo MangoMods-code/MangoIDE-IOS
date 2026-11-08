@@ -241,7 +241,8 @@ struct WelcomeView: View {
     @EnvironmentObject var router: Router
 
     private var projects: [FileItem] {
-        workspace.children(of: workspace.projectsFolder).filter { $0.isDirectory }
+        if workspace.projectsRoot != nil { return Array(workspace.projects().prefix(8)) }
+        return workspace.children(of: workspace.projectsFolder).filter { $0.isDirectory }
     }
 
     var body: some View {
@@ -259,6 +260,9 @@ struct WelcomeView: View {
                     action("folder", "Open Folder…") { router.show(.linkFolder) }
                     action("square.and.arrow.down", "Import Files…") { router.show(.importFiles(nil)) }
                     action("doc.zipper", "Import ZIP / RAR…") { router.show(.importArchive) }
+                    action("square.grid.2x2", workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…") {
+                        router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects)
+                    }
                 }
                 if !projects.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -282,6 +286,9 @@ struct WelcomeView: View {
     }
 
     private func openProject(_ dir: URL) {
+        if workspace.projectsRoot != nil && workspace.isInside(dir, workspace.projectsRoot!) {
+            workspace.openProject(dir)
+        }
         let files = workspace.children(of: dir).filter { !$0.isDirectory }
         let main = files.first { $0.name.hasPrefix("main.") } ?? files.first { $0.name != "README.md" } ?? files.first
         if let main { editor.open(main.url) }

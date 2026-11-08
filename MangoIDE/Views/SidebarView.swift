@@ -13,6 +13,7 @@ final class SidebarModel: ObservableObject {
     @Published private(set) var rows: [String: [TreeRow]] = [:]
     @Published var query = ""
     @Published private(set) var results: [FileItem] = []
+    @Published private(set) var projects: [FileItem] = []
 
     init() {
         expanded = Set(UserDefaults.standard.stringArray(forKey: "ws.expanded") ?? ["Projects", "Scratchpad"].map {
@@ -24,6 +25,8 @@ final class SidebarModel: ObservableObject {
         var out: [String: [TreeRow]] = [:]
         var roots = [workspace.root]
         roots += workspace.linkedFolders.map { $0.url }
+        if let ap = workspace.activeProject { roots.append(ap) }
+        projects = workspace.projects()
         for root in roots {
             var list: [TreeRow] = []
             flatten(root, depth: 0, into: &list, workspace)
@@ -48,8 +51,13 @@ final class SidebarModel: ObservableObject {
     }
 
     func reveal(_ url: URL, _ workspace: Workspace) {
-        var dir = url.deletingLastPathComponent()
-        while workspace.isInside(dir, workspace.root) && dir.path != workspace.root.path {
+        let roots = ([workspace.root] + workspace.linkedFolders.map { $0.url } + [workspace.activeProject].compactMap { $0 })
+            .map { $0.standardizedFileURL.path }
+        guard let owner = roots.filter({ workspace.isInside(url, URL(fileURLWithPath: $0)) }).max(by: { $0.count < $1.count }) else {
+            rebuild(workspace); return
+        }
+        var dir = url.deletingLastPathComponent().standardizedFileURL
+        while dir.path.count > owner.count && dir.path.hasPrefix(owner) {
             expanded.insert(dir.path)
             dir = dir.deletingLastPathComponent()
         }
@@ -70,7 +78,7 @@ final class SidebarModel: ObservableObject {
         searchGeneration += 1
         let gen = searchGeneration
         guard !q.isEmpty else { results = []; return }
-        let roots = [workspace.root] + workspace.linkedFolders.map { $0.url }
+        let roots = [workspace.root] + workspace.linkedFolders.map { $0.url } + [workspace.projectsRoot].compactMap { $0 }
         let hidden = AppSettings.shared.showHiddenFiles
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             var found: [FileItem] = []
@@ -119,6 +127,7 @@ struct SidebarView: View {
                     Section {
                         quickFolders
                     }
+                    projectsSection
                     Section {
                         ForEach(model.rows[workspace.root.path] ?? []) { row in fileRow(row) }
                     } header: {
@@ -156,12 +165,72 @@ struct SidebarView: View {
         .onAppear { model.rebuild(workspace) }
         .onChange(of: workspace.revision) { _ in model.rebuild(workspace) }
         .onChange(of: workspace.linkedFolders) { _ in model.rebuild(workspace) }
+        .onChange(of: workspace.activeProject) { _ in model.rebuild(workspace) }
+        .onChange(of: workspace.projectsRoot) { _ in model.rebuild(workspace) }
         .onChange(of: settings.sortMode) { _ in model.rebuild(workspace) }
         .onChange(of: settings.foldersFirst) { _ in model.rebuild(workspace) }
         .onChange(of: settings.showHiddenFiles) { _ in model.rebuild(workspace) }
         .onChange(of: model.query) { _ in model.search(workspace) }
         .onChange(of: router.revealRequest) { u in
             if let u { model.reveal(u, workspace); router.revealRequest = nil }
+        }
+    }
+
+    @ViewBuilder
+    private var projectsSection: some View {
+        if let root = workspace.projectsRoot {
+            Section {
+                if let ap = workspace.activeProject {
+                    ForEach(model.rows[ap.path] ?? []) { row in fileRow(row) }
+                    if (model.rows[ap.path] ?? []).isEmpty {
+                        Text("This project is empty.").foregroundStyle(.secondary).font(.subheadline)
+                    }
+                } else {
+                    if model.projects.isEmpty {
+                        Text("No project folders in \(root.lastPathComponent) yet.").foregroundStyle(.secondary).font(.subheadline)
+                    }
+                    ForEach(model.projects.prefix(30)) { p in
+                        Button { workspace.openProject(p.url) } label: {
+                            Label(p.name, systemImage: "shippingbox.fill").lineLimit(1)
+                        }
+                        .foregroundStyle(.primary)
+                        .listRowSeparator(.hidden)
+                    }
+                    if model.projects.count > 30 {
+                        Button("Show all \(model.projects.count) projects…") { router.show(.projects) }
+                    }
+                }
+            } header: {
+                HStack(spacing: 6) {
+                    if workspace.activeProject != nil {
+                        Button { workspace.openProject(nil) } label: { Image(systemName: "chevron.left") }
+                    }
+                    Image(systemName: workspace.activeProject == nil ? "square.grid.2x2" : "shippingbox.fill")
+                    Text(workspace.activeProject?.lastPathComponent ?? root.lastPathComponent).lineLimit(1)
+                    Spacer()
+                    Menu {
+                        Button { router.show(.projects) } label: { Label("Switch Project…", systemImage: "square.grid.2x2") }
+                        if let ap = workspace.activeProject {
+                            Button { router.show(.newFile(ap)) } label: { Label("New File", systemImage: "doc.badge.plus") }
+                            Button { router.show(.newFolder(ap)) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
+                            Button { workspace.openProject(nil) } label: { Label("Close Project", systemImage: "xmark") }
+                        }
+                        Button { router.show(.newProject) } label: { Label("New Project", systemImage: "plus") }
+                        Divider()
+                        Button { router.show(.pickProjectsFolder) } label: { Label("Change Projects Folder…", systemImage: "folder") }
+                        Button(role: .destructive) { workspace.clearProjectsRoot() } label: { Label("Remove Projects Folder", systemImage: "minus.circle") }
+                    } label: { Image(systemName: "ellipsis.circle").padding(.horizontal, 4) }
+                }
+                .font(.caption.weight(.semibold))
+            }
+        } else {
+            Section {
+                Button { router.show(.pickProjectsFolder) } label: {
+                    Label("Choose Your Projects Folder…", systemImage: "square.grid.2x2")
+                        .font(.subheadline)
+                }
+                .listRowSeparator(.hidden)
+            }
         }
     }
 

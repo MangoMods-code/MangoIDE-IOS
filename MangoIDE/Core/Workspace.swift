@@ -42,6 +42,10 @@ final class Workspace: ObservableObject {
     @Published var revision = 0
     @Published private(set) var linkedFolders: [LinkedFolder] = []
     @Published private(set) var recents: [RecentItem] = []
+    /// A folder the user picked that holds their project folders (e.g. iCloud Drive/Projects).
+    @Published private(set) var projectsRoot: URL?
+    /// The project from that folder that's open in the sidebar.
+    @Published private(set) var activeProject: URL?
 
     var projectsFolder: URL { root.appendingPathComponent("Projects", isDirectory: true) }
     var scratchFolder: URL { root.appendingPathComponent("Scratchpad", isDirectory: true) }
@@ -70,6 +74,7 @@ final class Workspace: ObservableObject {
         }
         loadLinked()
         loadRecents()
+        loadProjectsRoot()
     }
 
     func refresh() { revision += 1 }
@@ -161,7 +166,7 @@ final class Workspace: ObservableObject {
     @discardableResult
     func createProject(named name: String, language: LanguageDef, in parent: URL? = nil) throws -> URL {
         let n = try validate(name)
-        let dir = (parent ?? projectsFolder).appendingPathComponent(n, isDirectory: true)
+        let dir = (parent ?? newProjectParent).appendingPathComponent(n, isDirectory: true)
         if fm.fileExists(atPath: dir.path) { throw WorkspaceError.exists(n) }
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         let main = dir.appendingPathComponent(language.mainFileName)
@@ -276,12 +281,66 @@ final class Workspace: ObservableObject {
             let rel = String(p.dropFirst(r.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             return rel.isEmpty ? "MangoIDE" : "MangoIDE/" + rel
         }
+        if let pr = projectsRoot, isInside(url, pr) {
+            let rel = String(url.standardizedFileURL.path.dropFirst(pr.standardizedFileURL.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return rel.isEmpty ? pr.lastPathComponent : pr.lastPathComponent + "/" + rel
+        }
         for l in linkedFolders where isInside(url, l.url) {
             let rel = String(url.path.dropFirst(l.url.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             return rel.isEmpty ? l.name : l.name + "/" + rel
         }
         return url.path
     }
+
+    // MARK: Projects folder
+
+    private func loadProjectsRoot() {
+        projectsRoot = loadBookmarks("ws.projectsRoot").first?.1
+        if let root = projectsRoot, let name = UserDefaults.standard.string(forKey: "ws.activeProject") {
+            let u = root.appendingPathComponent(name, isDirectory: true)
+            activeProject = isDirectory(u) ? u : nil
+        }
+    }
+
+    func setProjectsRoot(_ url: URL) {
+        _ = url.startAccessingSecurityScopedResource()
+        projectsRoot = url
+        activeProject = nil
+        UserDefaults.standard.removeObject(forKey: "ws.activeProject")
+        saveBookmarks("ws.projectsRoot", [("root", url)])
+        refresh()
+    }
+
+    func clearProjectsRoot() {
+        projectsRoot = nil
+        activeProject = nil
+        UserDefaults.standard.removeObject(forKey: "ws.projectsRoot")
+        UserDefaults.standard.removeObject(forKey: "ws.activeProject")
+        refresh()
+    }
+
+    /// Every folder directly inside the projects folder, newest first.
+    func projects() -> [FileItem] {
+        guard let root = projectsRoot else { return [] }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
+        let urls = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+        return urls.compactMap { u -> FileItem? in
+            let v = try? u.resourceValues(forKeys: Set(keys))
+            guard v?.isDirectory == true else { return nil }
+            return FileItem(url: u, isDirectory: true, modified: v?.contentModificationDate, size: 0)
+        }
+        .sorted { ($0.modified ?? .distantPast) > ($1.modified ?? .distantPast) }
+    }
+
+    func openProject(_ url: URL?) {
+        activeProject = url
+        if let url { UserDefaults.standard.set(url.lastPathComponent, forKey: "ws.activeProject") }
+        else { UserDefaults.standard.removeObject(forKey: "ws.activeProject") }
+        refresh()
+    }
+
+    /// Where New Project puts things: your projects folder if you picked one, otherwise MangoIDE/Projects.
+    var newProjectParent: URL { projectsRoot ?? projectsFolder }
 
     // MARK: Linked folders (outside the app, e.g. iCloud Drive or another app's folder)
 
