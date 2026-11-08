@@ -42,6 +42,6 @@ enum SigningInfo {
     static var explanation: String? {
         guard let p = profile, p.mismatchesBundleID else { return nil }
         let appID = Bundle.main.bundleIdentifier ?? "this app's ID"
-        return "iOS refused access to that location. This copy of MangoIDE (\(appID)) was signed with a profile made for a different app (\(p.profileBundleID)), and iOS only gives folder and open-in-place access to the app a profile was made for.\n\nFix: re-sign MangoIDE in Mango Signer so the profile is made for \(appID). Importing (copying) files still works either way."
+        return "iOS refused access to that location. This copy of MangoIDE runs as \(appID), but its signing profile was made for \(p.profileBundleID). iOS only gives folder and open-in-place access to the app a profile was made for.\n\nFix (either one): sign MangoIDE with the bundle ID \(p.profileBundleID), or sign it with a profile made for \(appID) or a wildcard (*) profile. Importing (copying) files works either way."
     }
 }
