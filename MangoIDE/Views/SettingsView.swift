@@ -247,6 +247,8 @@ struct RunSettings: View {
             Section {
                 TextField("https://your-runner.example.com", text: $s.runnerURL)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                SecureField("Runner Key", text: $s.runnerKey)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button {
                     testing = true; result = nil
                     RunService.listRuntimes { r in

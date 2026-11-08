@@ -70,6 +70,7 @@ final class AppSettings: ObservableObject {
     @Published var saveBeforeRun: Bool { didSet { put(saveBeforeRun, "saveBeforeRun") } }
     @Published var showConsoleOnRun: Bool { didSet { put(showConsoleOnRun, "showConsoleOnRun") } }
     @Published var runnerURL: String { didSet { put(runnerURL, "runnerURL") } }
+    @Published var runnerKey: String { didSet { put(runnerKey, "runnerKey") } }
     @Published var runnerTimeout: Double { didSet { put(runnerTimeout, "runnerTimeout") } }
     @Published var showExecutionTime: Bool { didSet { put(showExecutionTime, "showExecutionTime") } }
     @Published var jsStrictMode: Bool { didSet { put(jsStrictMode, "jsStrictMode") } }
@@ -137,6 +138,7 @@ final class AppSettings: ObservableObject {
         saveBeforeRun = AppSettings.v("saveBeforeRun", true)
         showConsoleOnRun = AppSettings.v("showConsoleOnRun", true)
         runnerURL = AppSettings.v("runnerURL", "")
+        runnerKey = AppSettings.v("runnerKey", "")
         runnerTimeout = AppSettings.v("runnerTimeout", 20.0)
         showExecutionTime = AppSettings.v("showExecutionTime", true)
         jsStrictMode = AppSettings.v("jsStrictMode", false)
@@ -149,7 +151,7 @@ final class AppSettings: ObservableObject {
 
     func resetAll() {
         if let id = Bundle.main.bundleIdentifier {
-            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") }
+            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || $0.key == "runnerURL" || $0.key == "runnerKey" }
             AppSettings.d.removePersistentDomain(forName: id)
             for (k, val) in keep { AppSettings.d.set(val, forKey: k) }
         }
@@ -175,7 +177,7 @@ final class AppSettings: ObservableObject {
         defaultExtension = fresh.defaultExtension; projectReadme = fresh.projectReadme
         projectGitignore = fresh.projectGitignore; closeSidebarOnOpen = fresh.closeSidebarOnOpen
         clearConsoleOnRun = fresh.clearConsoleOnRun; saveBeforeRun = fresh.saveBeforeRun
-        showConsoleOnRun = fresh.showConsoleOnRun; runnerURL = fresh.runnerURL
+        showConsoleOnRun = fresh.showConsoleOnRun
         runnerTimeout = fresh.runnerTimeout; showExecutionTime = fresh.showExecutionTime
         jsStrictMode = fresh.jsStrictMode; hapticFeedback = fresh.hapticFeedback
         keepScreenAwake = fresh.keepScreenAwake; showWelcome = fresh.showWelcome

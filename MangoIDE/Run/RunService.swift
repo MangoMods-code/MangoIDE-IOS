@@ -157,6 +157,7 @@ enum RunService {
         var req = URLRequest(url: url, timeoutInterval: max(5, s.runnerTimeout))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        authorize(&req)
         let body: [String: Any] = [
             "language": language, "version": "*",
             "files": [["name": fileName, "content": code]],
@@ -192,13 +193,23 @@ enum RunService {
         }.resume()
     }
 
-    static func listRuntimes(completion: @escaping (Result<[String], Error>) -> Void) {
+    static func authorize(_ req: inout URLRequest) {
+        let key = AppSettings.shared.runnerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty { req.setValue("Bearer " + key, forHTTPHeaderField: "Authorization") }
+    }
+
+        static func listRuntimes(completion: @escaping (Result<[String], Error>) -> Void) {
         guard let url = runnerEndpoint(AppSettings.shared.runnerURL, path: "runtimes") else {
             completion(.failure(ExtensionError.invalid("Enter a runner address first."))); return
         }
-        URLSession.shared.dataTask(with: url) { data, _, error in
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        authorize(&req)
+        URLSession.shared.dataTask(with: req) { data, resp, error in
             DispatchQueue.main.async {
                 if let error { completion(.failure(error)); return }
+                if (resp as? HTTPURLResponse)?.statusCode == 401 {
+                    completion(.failure(ExtensionError.invalid("The runner refused the key. Check the Runner Key field."))); return
+                }
                 guard let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                     completion(.failure(ExtensionError.invalid("That address didn't answer like a runner server."))); return
                 }
