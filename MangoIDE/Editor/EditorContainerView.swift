@@ -1,0 +1,429 @@
+import UIKit
+
+/// Gutter + text view, plus all the "smart" typing behaviour.
+final class EditorContainerView: UIView, UITextViewDelegate {
+    let textView: CodeTextView = CodeTextView(usingTextLayoutManager: false)
+    let gutter = GutterView()
+
+    private(set) var config: EditorConfig?
+    private(set) var theme: EditorTheme = ThemeLibrary.builtIn[0]
+    private(set) var language: LanguageDef = .plain
+    private(set) var lineStarts: [Int] = [0]
+
+    var onTextChange: ((String) -> Void)?
+    var onFocus: (() -> Void)?
+    var onCursor: ((Int, Int) -> Void)?
+    var snippetProvider: (() -> [Snippet])?
+
+    private var highlightWork: DispatchWorkItem?
+    private var gutterWidth: CGFloat = 0
+    private var accessory: AccessoryBar?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        textView.owner = self
+        textView.delegate = self
+        textView.autocapitalizationType = .none
+        textView.smartDashesType = .no
+        textView.smartQuotesType = .no
+        textView.smartInsertDeleteType = .no
+        textView.dataDetectorTypes = []
+        textView.alwaysBounceVertical = true
+        textView.keyboardDismissMode = .interactive
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 6, bottom: 8, right: 8)
+        textView.textContainer.lineFragmentPadding = 2
+        textView.layoutManager.allowsNonContiguousLayout = false
+        if #available(iOS 16.0, *) { textView.isFindInteractionEnabled = true }
+        gutter.textView = textView
+        gutter.owner = self
+        gutter.isUserInteractionEnabled = false
+        addSubview(textView)
+        addSubview(gutter)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let gw = (config?.showLineNumbers ?? true) ? gutterWidth : 0
+        gutter.isHidden = gw == 0
+        gutter.frame = CGRect(x: 0, y: 0, width: gw, height: bounds.height)
+        textView.frame = CGRect(x: gw, y: 0, width: max(0, bounds.width - gw), height: bounds.height)
+        let bottom = (config?.scrollPastEnd ?? true) ? bounds.height * 0.4 : 0
+        if abs(textView.contentInset.bottom - bottom) > 1 { textView.contentInset.bottom = bottom }
+        if textView.wraps {
+            textView.textContainer.size.width = max(10, textView.bounds.width - textView.textContainerInset.left - textView.textContainerInset.right)
+        }
+        gutter.setNeedsDisplay()
+    }
+
+    // MARK: Configuration
+
+    func apply(config newConfig: EditorConfig, theme newTheme: EditorTheme, language newLanguage: LanguageDef) {
+        let configChanged = newConfig != config
+        let themeChanged = newTheme != theme
+        let langChanged = newLanguage != language
+        guard configChanged || themeChanged || langChanged || config == nil else { return }
+        let accessoryChanged = config.map { $0.showAccessory != newConfig.showAccessory || $0.accessoryKeys != newConfig.accessoryKeys
+            || $0.accessoryArrows != newConfig.accessoryArrows || $0.accessoryUndo != newConfig.accessoryUndo } ?? true
+        config = newConfig
+        theme = newTheme
+        language = newLanguage
+
+        textView.backgroundColor = newTheme.bg
+        backgroundColor = newTheme.bg
+        textView.tintColor = UIColor(hex: newTheme.cursor)
+        textView.keyboardAppearance = newTheme.isDark ? .dark : .light
+        textView.indicatorStyle = newTheme.isDark ? .white : .black
+        textView.spellCheckingType = newConfig.spellCheck ? .yes : .no
+        textView.autocorrectionType = newConfig.autocorrect ? .yes : .no
+        textView.wraps = newConfig.wordWrap
+        textView.typingAttributes = SyntaxHighlighter.baseAttributes(theme: newTheme, config: newConfig)
+        gutter.backgroundColor = UIColor(hex: newTheme.gutterBackground)
+
+        if accessoryChanged {
+            if newConfig.showAccessory {
+                let bar = AccessoryBar(config: newConfig, theme: newTheme)
+                bar.onKey = { [weak self] key in self?.accessoryKey(key) }
+                accessory = bar
+                textView.inputAccessoryView = bar
+            } else {
+                accessory = nil
+                textView.inputAccessoryView = nil
+            }
+            if textView.isFirstResponder { textView.reloadInputViews() }
+        } else if themeChanged {
+            accessory?.applyTheme(newTheme)
+        }
+        updateGutterWidth()
+        highlightNow()
+        setNeedsLayout()
+    }
+
+    func setText(_ text: String) {
+        let sel = textView.selectedRange
+        let offset = textView.contentOffset
+        textView.text = text
+        recomputeLines()
+        highlightNow()
+        let len = textView.textStorage.length
+        textView.selectedRange = NSRange(location: min(sel.location, len), length: 0)
+        textView.setContentOffset(offset, animated: false)
+        gutter.setNeedsDisplay()
+    }
+
+    // MARK: Change handling
+
+    private func recomputeLines() {
+        var starts = [0]
+        var i = 0
+        for c in textView.textStorage.string.utf16 {
+            i += 1
+            if c == 10 { starts.append(i) }
+        }
+        lineStarts = starts
+        updateGutterWidth()
+    }
+
+    private func updateGutterWidth() {
+        guard let config else { return }
+        let digits = max(2, String(lineStarts.count).count)
+        let font = GutterView.font(for: config)
+        let w = ceil(("8" as NSString).size(withAttributes: [.font: font]).width * CGFloat(digits)) + 18
+        if abs(w - gutterWidth) > 0.5 { gutterWidth = w; setNeedsLayout() }
+    }
+
+    func lineIndex(for location: Int) -> Int {
+        var lo = 0, hi = lineStarts.count - 1
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2
+            if lineStarts[mid] <= location { lo = mid } else { hi = mid - 1 }
+        }
+        return lo
+    }
+
+    func handleChange() {
+        recomputeLines()
+        onTextChange?(textView.textStorage.string)
+        scheduleHighlight()
+        reportCursor()
+        gutter.setNeedsDisplay()
+    }
+
+    private func scheduleHighlight() {
+        highlightWork?.cancel()
+        let len = textView.textStorage.length
+        let delay = len < 20_000 ? 0.08 : (len < 100_000 ? 0.25 : 0.6)
+        let work = DispatchWorkItem { [weak self] in self?.highlightNow() }
+        highlightWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    func highlightNow() {
+        guard let config else { return }
+        if textView.markedTextRange != nil { scheduleHighlight(); return }
+        SyntaxHighlighter.highlight(textView.textStorage, language: language, theme: theme, config: config)
+        textView.typingAttributes = SyntaxHighlighter.baseAttributes(theme: theme, config: config)
+        gutter.setNeedsDisplay()
+    }
+
+    private func reportCursor() {
+        let loc = textView.selectedRange.location
+        let line = lineIndex(for: loc)
+        let col = loc - lineStarts[line] + 1
+        let cb = onCursor
+        DispatchQueue.main.async { cb?(line + 1, col) }
+    }
+
+    /// Replace text with undo support and place the caret.
+    func replace(_ range: NSRange, with string: String, cursorOffset: Int, select: Bool = false) {
+        let len = textView.textStorage.length
+        let safe = NSRange(location: min(range.location, len), length: min(range.length, len - min(range.location, len)))
+        guard let start = textView.position(from: textView.beginningOfDocument, offset: safe.location),
+              let end = textView.position(from: start, offset: safe.length),
+              let tr = textView.textRange(from: start, to: end) else { return }
+        textView.replace(tr, withText: string)
+        let newLen = (string as NSString).length
+        if select {
+            textView.selectedRange = NSRange(location: safe.location, length: newLen)
+        } else {
+            textView.selectedRange = NSRange(location: safe.location + min(cursorOffset, newLen), length: 0)
+        }
+        handleChange()
+        textView.scrollRangeToVisible(textView.selectedRange)
+    }
+
+    // MARK: UITextViewDelegate
+
+    func textViewDidChange(_ tv: UITextView) { handleChange() }
+
+    func textViewDidChangeSelection(_ tv: UITextView) {
+        reportCursor()
+        gutter.setNeedsDisplay()
+    }
+
+    func textViewDidBeginEditing(_ tv: UITextView) { onFocus?() }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { gutter.setNeedsDisplay() }
+
+    private static let pairs: [Character: Character] = ["(": ")", "[": "]", "{": "}", "\"": "\"", "'": "'", "`": "`"]
+    private static let closers: Set<Character> = [")", "]", "}"]
+    private static let quoteChars: Set<Character> = ["\"", "'", "`"]
+
+    private func char(at i: Int, in ns: NSString) -> Character? {
+        guard i >= 0, i < ns.length else { return nil }
+        return Character(ns.substring(with: ns.rangeOfComposedCharacterSequence(at: i)))
+    }
+
+    func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        smartShouldChange(range, text)
+    }
+
+    /// Returns true to let UIKit insert the text as-is, false when we handled it ourselves.
+    func smartShouldChange(_ range: NSRange, _ text: String) -> Bool {
+        let tv: UITextView = textView
+        guard let c = config, tv.markedTextRange == nil else { return true }
+        let ns = tv.textStorage.string as NSString
+        let next = char(at: NSMaxRange(range), in: ns)
+        let prev = char(at: range.location - 1, in: ns)
+
+        // Enter: keep indentation, indent after an opening bracket/colon, split {} onto lines.
+        if text == "\n" && c.autoIndent {
+            let lineStart = ns.lineRange(for: NSRange(location: range.location, length: 0)).location
+            let upToCursor = ns.substring(with: NSRange(location: lineStart, length: range.location - lineStart))
+            let indent = String(upToCursor.prefix { $0 == " " || $0 == "\t" })
+            let trimmed = upToCursor.trimmingCharacters(in: .whitespaces)
+            var extra = ""
+            if let last = trimmed.last {
+                if "{[(".contains(last) { extra = c.indentUnit }
+                if last == ":" && ["python", "nim", "yaml"].contains(language.id) { extra = c.indentUnit }
+                if ["lua", "ruby", "elixir", "julia"].contains(language.id) {
+                    let lower = trimmed.lowercased()
+                    if lower.hasSuffix(" do") || lower.hasSuffix(" then") || lower.hasPrefix("function") || lower.hasPrefix("def ") || lower.hasPrefix("local function") {
+                        extra = c.indentUnit
+                    }
+                }
+                if (language.markup ?? false), last == ">", !trimmed.hasPrefix("</"), !trimmed.hasSuffix("/>"),
+                   let next, next == "<" { extra = c.indentUnit }
+            }
+            if !extra.isEmpty, let p = trimmed.last, let n = next,
+               (EditorContainerView.pairs[p] == n && EditorContainerView.closers.contains(n)) || (p == ">" && n == "<") {
+                let s = "\n" + indent + extra + "\n" + indent
+                replace(range, with: s, cursorOffset: (("\n" + indent + extra) as NSString).length)
+                return false
+            }
+            let s = "\n" + indent + extra
+            replace(range, with: s, cursorOffset: (s as NSString).length)
+            return false
+        }
+
+        // Backspace: remove an empty bracket/quote pair, or a whole indent step.
+        if text.isEmpty && range.length == 1 {
+            if c.smartBackspace, let deleted = char(at: range.location, in: ns), let n = char(at: range.location + 1, in: ns),
+               EditorContainerView.pairs[deleted] == n {
+                replace(NSRange(location: range.location, length: 2), with: "", cursorOffset: 0)
+                return false
+            }
+            if c.smartBackspace && c.insertSpaces, char(at: range.location, in: ns) == " " {
+                let lineStart = ns.lineRange(for: NSRange(location: range.location, length: 0)).location
+                let before = ns.substring(with: NSRange(location: lineStart, length: NSMaxRange(range) - lineStart))
+                if !before.isEmpty && before.allSatisfy({ $0 == " " }) {
+                    let unit = max(1, c.tabWidth)
+                    let remove = before.count % unit == 0 ? unit : before.count % unit
+                    let start = NSMaxRange(range) - remove
+                    replace(NSRange(location: start, length: remove), with: "", cursorOffset: 0)
+                    return false
+                }
+            }
+            return true
+        }
+
+        guard text.count == 1, let ch = text.first else { return true }
+        let isQuote = EditorContainerView.quoteChars.contains(ch)
+        let enabled = isQuote ? c.autoCloseQuotes : c.autoCloseBrackets
+
+        // Typing a closer that is already there just steps over it.
+        if enabled && range.length == 0, let n = next, n == ch,
+           EditorContainerView.closers.contains(ch) || isQuote {
+            tv.selectedRange = NSRange(location: range.location + 1, length: 0)
+            return false
+        }
+
+        if enabled, let close = EditorContainerView.pairs[ch] {
+            if range.length > 0 {
+                // Wrap the selection.
+                let inner = ns.substring(with: range)
+                let s = String(ch) + inner + String(close)
+                replace(range, with: s, cursorOffset: (s as NSString).length)
+                return false
+            }
+            if isQuote {
+                if let p = prev, p.isLetter || p.isNumber || p == "\\" { return true }
+                if ch == "'" && ["markdown", "plaintext", "rust"].contains(language.id) { return true }
+            }
+            if let n = next, !(n.isWhitespace || EditorContainerView.closers.contains(n) || n == "," || n == ";" || n == ":") { return true }
+            replace(range, with: String(ch) + String(close), cursorOffset: 1)
+            return false
+        }
+        return true
+    }
+
+    // MARK: Accessory bar keys
+
+    private func accessoryKey(_ key: AccessoryBar.Key) {
+        let tv = textView
+        switch key {
+        case .text(let s):
+            let range = tv.selectedRange
+            if smartShouldChange(range, s) {
+                replace(range, with: s, cursorOffset: (s as NSString).length)
+            }
+        case .tab:
+            if tv.selectedRange.length > 0 { tv.indentSelection(outdent: false) }
+            else if let c = config { replace(tv.selectedRange, with: c.indentUnit, cursorOffset: (c.indentUnit as NSString).length) }
+        case .outdent:
+            tv.indentSelection(outdent: true)
+        case .left:
+            let r = tv.selectedRange
+            tv.selectedRange = NSRange(location: max(0, r.length > 0 ? r.location : r.location - 1), length: 0)
+        case .right:
+            let r = tv.selectedRange
+            tv.selectedRange = NSRange(location: min(tv.textStorage.length, r.length > 0 ? NSMaxRange(r) : r.location + 1), length: 0)
+        case .up, .down:
+            let loc = tv.selectedRange.location
+            let line = lineIndex(for: loc)
+            let col = loc - lineStarts[line]
+            let target = key == .up ? line - 1 : line + 1
+            guard target >= 0 && target < lineStarts.count else { return }
+            let start = lineStarts[target]
+            let end = target + 1 < lineStarts.count ? lineStarts[target + 1] - 1 : tv.textStorage.length
+            tv.selectedRange = NSRange(location: min(start + col, max(start, end)), length: 0)
+        case .undo:
+            tv.undoManager?.undo(); handleChange()
+        case .redo:
+            tv.undoManager?.redo(); handleChange()
+        case .comment:
+            tv.toggleComment(lineComment: language.lineComment)
+        case .snippets:
+            NotificationCenter.default.post(name: .showSnippets, object: nil)
+        case .dismiss:
+            tv.resignFirstResponder()
+        }
+        tv.scrollRangeToVisible(tv.selectedRange)
+    }
+}
+
+extension Notification.Name {
+    static let showSnippets = Notification.Name("mango.showSnippets")
+}
+
+// MARK: - Line number gutter
+
+final class GutterView: UIView {
+    weak var textView: CodeTextView?
+    weak var owner: EditorContainerView?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentMode = .redraw
+        isOpaque = true
+    }
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    static func font(for config: EditorConfig) -> UIFont {
+        UIFont.monospacedDigitSystemFont(ofSize: max(9, CGFloat(config.fontSize) * 0.82), weight: .regular)
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let tv = textView, let owner, let config = owner.config else { return }
+        let theme = owner.theme
+        UIColor(hex: theme.gutterBackground).setFill()
+        UIRectFill(bounds)
+
+        let lm = tv.layoutManager
+        let container = tv.textContainer
+        let inset = tv.textContainerInset
+        let storageLength = tv.textStorage.length
+        let starts = owner.lineStarts
+        let font = GutterView.font(for: config)
+        let normal: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor(hex: theme.gutterForeground)]
+        let active: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .bold),
+                                                     .foregroundColor: UIColor(hex: theme.gutterActive)]
+        let currentLine = config.highlightCurrentLine ? owner.lineIndex(for: tv.selectedRange.location) : -1
+
+        let visible = CGRect(x: 0, y: tv.contentOffset.y - inset.top, width: max(1, container.size.width), height: tv.bounds.height)
+        var firstLine = 0
+        if storageLength > 0 {
+            let glyphs = lm.glyphRange(forBoundingRect: visible, in: container)
+            let chars = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            firstLine = owner.lineIndex(for: chars.location)
+        }
+        var lastBaselineOffset: CGFloat = font.ascender + 2
+        var line = firstLine
+        while line < starts.count {
+            let start = starts[line]
+            var fragment: CGRect
+            var baselineOffset = lastBaselineOffset
+            if start < storageLength {
+                let g = lm.glyphIndexForCharacter(at: start)
+                fragment = lm.lineFragmentRect(forGlyphAt: g, effectiveRange: nil)
+                baselineOffset = lm.location(forGlyphAt: g).y
+                lastBaselineOffset = baselineOffset
+            } else {
+                fragment = lm.extraLineFragmentRect
+                if fragment.isEmpty && storageLength == 0 {
+                    fragment = CGRect(x: 0, y: 0, width: 10, height: font.lineHeight * CGFloat(config.lineHeight))
+                }
+                if fragment.isEmpty { break }
+            }
+            let y = fragment.minY + inset.top - tv.contentOffset.y
+            if y > bounds.height { break }
+            let attrs = line == currentLine ? active : normal
+            let label = "\(line + 1)" as NSString
+            let size = label.size(withAttributes: attrs)
+            let drawY = y + baselineOffset - font.ascender
+            label.draw(at: CGPoint(x: bounds.width - size.width - 8, y: drawY), withAttributes: attrs)
+            line += 1
+        }
+    }
+}

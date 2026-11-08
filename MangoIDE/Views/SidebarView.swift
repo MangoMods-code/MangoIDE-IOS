@@ -1,0 +1,378 @@
+import SwiftUI
+
+struct TreeRow: Identifiable, Hashable {
+    let item: FileItem
+    let depth: Int
+    var id: URL { item.url }
+}
+
+final class SidebarModel: ObservableObject {
+    @Published var expanded: Set<String> {
+        didSet { UserDefaults.standard.set(Array(expanded), forKey: "ws.expanded") }
+    }
+    @Published private(set) var rows: [String: [TreeRow]] = [:]
+    @Published var query = ""
+    @Published private(set) var results: [FileItem] = []
+
+    init() {
+        expanded = Set(UserDefaults.standard.stringArray(forKey: "ws.expanded") ?? ["Projects", "Scratchpad"].map {
+            Workspace.shared.root.appendingPathComponent($0).path
+        })
+    }
+
+    func rebuild(_ workspace: Workspace) {
+        var out: [String: [TreeRow]] = [:]
+        var roots = [workspace.root]
+        roots += workspace.linkedFolders.map { $0.url }
+        for root in roots {
+            var list: [TreeRow] = []
+            flatten(root, depth: 0, into: &list, workspace)
+            out[root.path] = list
+        }
+        rows = out
+        if !query.isEmpty { search(workspace) }
+    }
+
+    private func flatten(_ dir: URL, depth: Int, into list: inout [TreeRow], _ workspace: Workspace) {
+        for child in workspace.children(of: dir) {
+            list.append(TreeRow(item: child, depth: depth))
+            if child.isDirectory && expanded.contains(child.url.path) && depth < 14 {
+                flatten(child.url, depth: depth + 1, into: &list, workspace)
+            }
+        }
+    }
+
+    func toggle(_ url: URL, _ workspace: Workspace) {
+        if expanded.contains(url.path) { expanded.remove(url.path) } else { expanded.insert(url.path) }
+        rebuild(workspace)
+    }
+
+    func reveal(_ url: URL, _ workspace: Workspace) {
+        var dir = url.deletingLastPathComponent()
+        while workspace.isInside(dir, workspace.root) && dir.path != workspace.root.path {
+            expanded.insert(dir.path)
+            dir = dir.deletingLastPathComponent()
+        }
+        rebuild(workspace)
+    }
+
+    func collapseAll(_ workspace: Workspace) {
+        expanded = []
+        rebuild(workspace)
+    }
+
+    func search(_ workspace: Workspace) {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { results = []; return }
+        var found: [FileItem] = []
+        let roots = [workspace.root] + workspace.linkedFolders.map { $0.url }
+        for root in roots {
+            guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey],
+                                                          options: AppSettings.shared.showHiddenFiles ? [] : [.skipsHiddenFiles]) else { continue }
+            for case let u as URL in en {
+                if u.lastPathComponent.lowercased().contains(q) {
+                    let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                    found.append(FileItem(url: u, isDirectory: isDir, modified: nil, size: 0))
+                    if found.count >= 300 { break }
+                }
+            }
+        }
+        results = found
+    }
+}
+
+struct SidebarView: View {
+    @EnvironmentObject var workspace: Workspace
+    @EnvironmentObject var editor: EditorState
+    @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var router: Router
+    @StateObject private var model = SidebarModel()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            searchField
+            List {
+                if !model.query.isEmpty {
+                    Section("Results") {
+                        if model.results.isEmpty { Text("No matches").foregroundStyle(.secondary) }
+                        ForEach(model.results) { item in
+                            fileRow(TreeRow(item: item, depth: 0), showPath: true)
+                        }
+                    }
+                } else {
+                    Section {
+                        quickFolders
+                    }
+                    Section {
+                        ForEach(model.rows[workspace.root.path] ?? []) { row in fileRow(row) }
+                    } header: {
+                        rootHeader(title: "MangoIDE", url: workspace.root, linked: nil)
+                    }
+                    ForEach(workspace.linkedFolders) { folder in
+                        Section {
+                            ForEach(model.rows[folder.url.path] ?? []) { row in fileRow(row) }
+                        } header: {
+                            rootHeader(title: folder.name, url: folder.url, linked: folder)
+                        }
+                    }
+                    if !workspace.recents.isEmpty {
+                        Section {
+                            ForEach(workspace.recents) { r in
+                                Button { open(r.url) } label: {
+                                    Label(r.url.lastPathComponent, systemImage: "clock")
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(.primary)
+                            }
+                        } header: {
+                            HStack {
+                                Text("Recent Outside Files")
+                                Spacer()
+                                Button("Clear") { workspace.clearRecents() }.font(.caption)
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 30)
+        }
+        .onAppear { model.rebuild(workspace) }
+        .onChange(of: workspace.revision) { _ in model.rebuild(workspace) }
+        .onChange(of: workspace.linkedFolders) { _ in model.rebuild(workspace) }
+        .onChange(of: settings.sortMode) { _ in model.rebuild(workspace) }
+        .onChange(of: settings.foldersFirst) { _ in model.rebuild(workspace) }
+        .onChange(of: settings.showHiddenFiles) { _ in model.rebuild(workspace) }
+        .onChange(of: model.query) { _ in model.search(workspace) }
+    }
+
+    private var header: some View {
+        HStack(spacing: 2) {
+            Text("Explorer").font(.headline)
+            Spacer()
+            iconButton("doc.badge.plus") { router.show(.newFile(workspace.scratchFolder)) }
+            iconButton("folder.badge.plus") { router.show(.newFolder(workspace.root)) }
+            iconButton("shippingbox") { router.show(.newProject) }
+            Menu {
+                Button { router.show(.openFile) } label: { Label("Open File…", systemImage: "doc") }
+                Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
+                Button { router.show(.importFiles(nil)) } label: { Label("Import Files…", systemImage: "square.and.arrow.down") }
+                Divider()
+                Picker("Sort by", selection: $settings.sortMode) {
+                    Text("Name").tag("name"); Text("Date").tag("date"); Text("Kind").tag("kind"); Text("Size").tag("size")
+                }
+                Toggle("Folders First", isOn: $settings.foldersFirst)
+                Toggle("Show Hidden Files", isOn: $settings.showHiddenFiles)
+                Divider()
+                Button { model.collapseAll(workspace) } label: { Label("Collapse All", systemImage: "rectangle.compress.vertical") }
+                Button { workspace.refresh() } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+            } label: {
+                Image(systemName: "ellipsis.circle").frame(width: 34, height: 34)
+            }
+        }
+        .padding(.leading, 14).padding(.trailing, 6)
+        .padding(.top, 8)
+    }
+
+    private var searchField: some View {
+        HStack {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search files", text: $model.query)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            if !model.query.isEmpty {
+                Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+            }
+        }
+        .padding(8)
+        .background(Color(uiColor: .secondarySystemFill), in: RoundedRectangle(cornerRadius: 9))
+        .padding(.horizontal, 10).padding(.vertical, 6)
+    }
+
+    private var quickFolders: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Workspace.builtInFolders, id: \.self) { name in
+                    let url = workspace.root.appendingPathComponent(name)
+                    Button {
+                        model.reveal(url.appendingPathComponent("x"), workspace)
+                    } label: {
+                        Label(name, systemImage: FileIcons.folderSymbol(name))
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color.accentColor.opacity(0.14), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
+        .listRowSeparator(.hidden)
+    }
+
+    private func rootHeader(title: String, url: URL, linked: LinkedFolder?) -> some View {
+        HStack {
+            Image(systemName: linked == nil ? "iphone" : "link")
+            Text(title).lineLimit(1)
+            Spacer()
+            Menu {
+                Button { router.show(.newFile(url)) } label: { Label("New File", systemImage: "doc.badge.plus") }
+                Button { router.show(.newFolder(url)) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
+                Button { router.show(.importFiles(url)) } label: { Label("Import Files Here…", systemImage: "square.and.arrow.down") }
+                if let linked {
+                    Divider()
+                    Button(role: .destructive) { workspace.unlink(linked) } label: { Label("Remove from Sidebar", systemImage: "link.badge.plus") }
+                }
+            } label: { Image(systemName: "plus.circle").padding(.horizontal, 4) }
+        }
+        .font(.caption.weight(.semibold))
+    }
+
+    @ViewBuilder
+    private func fileRow(_ row: TreeRow, showPath: Bool = false) -> some View {
+        let item = row.item
+        let isOpen = editor.activeDocument?.url.standardizedFileURL == item.url.standardizedFileURL
+        let isExpanded = model.expanded.contains(item.url.path)
+        Button {
+            if item.isDirectory { model.toggle(item.url, workspace) } else { open(item.url) }
+        } label: {
+            HStack(spacing: 6) {
+                if item.isDirectory {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                } else {
+                    Spacer().frame(width: 12)
+                }
+                if settings.showFileIcons {
+                    let icon = FileIcons.icon(for: item.url, isDirectory: item.isDirectory, open: isExpanded)
+                    Image(systemName: icon.0).foregroundStyle(icon.1).frame(width: 20)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.name).lineLimit(1).truncationMode(.middle)
+                    if showPath {
+                        Text(workspace.displayPath(item.url.deletingLastPathComponent()))
+                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, CGFloat(row.depth) * 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 15))
+        .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 8))
+        .listRowBackground(isOpen ? Color.accentColor.opacity(0.16) : Color.clear)
+        .listRowSeparator(.hidden)
+        .contextMenu { contextMenu(for: item) }
+    }
+
+    @ViewBuilder
+    private func contextMenu(for item: FileItem) -> some View {
+        let builtIn = workspace.isBuiltInFolder(item.url)
+        if item.isDirectory {
+            Button { router.show(.newFile(item.url)) } label: { Label("New File Here", systemImage: "doc.badge.plus") }
+            Button { router.show(.newFolder(item.url)) } label: { Label("New Folder Here", systemImage: "folder.badge.plus") }
+            Button { router.show(.importFiles(item.url)) } label: { Label("Import Files Here…", systemImage: "square.and.arrow.down") }
+        } else {
+            Button { open(item.url) } label: { Label("Open", systemImage: "doc.text") }
+            Button { editor.open(item.url); editor.openToSide(editor.activeDocument?.id); closeIfNarrow() } label: {
+                Label("Open to the Side", systemImage: "rectangle.split.2x1")
+            }
+        }
+        Divider()
+        if !builtIn {
+            Button { router.beginRename(item.url) } label: { Label("Rename", systemImage: "pencil") }
+        }
+        Button {
+            do { _ = try workspace.duplicate(item.url) } catch { router.fail(error) }
+        } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+        if !builtIn {
+            Menu {
+                ForEach(Workspace.builtInFolders, id: \.self) { name in
+                    Button(name) { move(item.url, to: workspace.root.appendingPathComponent(name)) }
+                }
+                Button("MangoIDE (top level)") { move(item.url, to: workspace.root) }
+            } label: { Label("Move To", systemImage: "folder") }
+        }
+        ShareLink(item: item.url) { Label("Share", systemImage: "square.and.arrow.up") }
+        Button {
+            UIPasteboard.general.string = workspace.displayPath(item.url)
+            router.flash("Path copied")
+        } label: { Label("Copy Path", systemImage: "doc.on.clipboard") }
+        if !builtIn {
+            Divider()
+            Button(role: .destructive) {
+                if settings.confirmDelete { router.deleteTarget = item.url }
+                else {
+                    editor.fileDeleted(item.url)
+                    do { try workspace.delete(item.url) } catch { router.fail(error) }
+                }
+            } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
+    private func move(_ url: URL, to dir: URL) {
+        do {
+            let new = try workspace.move(url, into: dir)
+            editor.fileRenamed(from: url, to: new)
+        } catch { router.fail(error) }
+    }
+
+    private func open(_ url: URL) {
+        editor.open(url)
+        closeIfNarrow()
+    }
+
+    private func closeIfNarrow() {
+        if settings.closeSidebarOnOpen && UIScreen.main.bounds.width < 700 {
+            withAnimation { router.sidebarOpen = false }
+        }
+    }
+
+    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Image(systemName: symbol).frame(width: 34, height: 34) }
+    }
+}
+
+enum FileIcons {
+    static func folderSymbol(_ name: String) -> String {
+        switch name {
+        case "Projects": return "shippingbox.fill"
+        case "Scratchpad": return "note.text"
+        case "Snippets": return "text.badge.star"
+        case "Imported": return "tray.and.arrow.down.fill"
+        case "Extensions": return "puzzlepiece.extension.fill"
+        default: return "folder.fill"
+        }
+    }
+
+    static func icon(for url: URL, isDirectory: Bool, open: Bool) -> (String, Color) {
+        if isDirectory {
+            let builtIn = Workspace.shared.isBuiltInFolder(url)
+            return (builtIn ? folderSymbol(url.lastPathComponent) : (open ? "folder" : "folder.fill"), .accentColor)
+        }
+        switch url.pathExtension.lowercased() {
+        case "swift": return ("swift", .orange)
+        case "py", "pyw": return ("chevron.left.forwardslash.chevron.right", .blue)
+        case "js", "mjs", "cjs", "jsx": return ("curlybraces", .yellow)
+        case "ts", "tsx": return ("curlybraces", .blue)
+        case "json": return ("curlybraces.square", .green)
+        case "html", "htm": return ("globe", .orange)
+        case "css", "scss", "less": return ("paintbrush", .purple)
+        case "md", "markdown": return ("doc.richtext", .gray)
+        case "txt": return ("doc.text", .gray)
+        case "png", "jpg", "jpeg", "gif", "heic", "webp", "svg": return ("photo", .pink)
+        case "zip", "tar", "gz": return ("doc.zipper", .brown)
+        case "sh", "bash", "zsh": return ("terminal", .green)
+        case "c", "h", "cpp", "hpp", "cc", "cs", "java", "kt", "go", "rs", "rb", "php", "lua", "dart":
+            return ("chevron.left.forwardslash.chevron.right", .teal)
+        case "yml", "yaml", "toml", "ini", "plist", "xml": return ("gearshape", .gray)
+        default: return ("doc", .secondary)
+        }
+    }
+}

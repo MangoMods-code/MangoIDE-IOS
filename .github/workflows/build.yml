@@ -1,0 +1,70 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ipa
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Every build gets its own version so Mango Signer (and any installer) sees each IPA
+      # as a real update: 0.1.<run number>, build <run number>. Never the same twice.
+      - name: Set version
+        run: |
+          echo "APP_VERSION=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "APP_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild -quiet \
+            -project MangoIDE.xcodeproj \
+            -scheme MangoIDE \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            SYMROOT="$PWD/build" \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="$APP_BUILD" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA and verify version
+        run: |
+          rm -rf Payload && mkdir Payload
+          cp -R build/Release-iphoneos/MangoIDE.app Payload/
+          zip -qry MangoIDE.ipa Payload
+          ls -lh MangoIDE.ipa
+          V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Payload/MangoIDE.app/Info.plist)
+          B=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Payload/MangoIDE.app/Info.plist)
+          echo "IPA reports version $V (build $B)"
+          if [ "$V" != "$APP_VERSION" ] || [ "$B" != "$APP_BUILD" ]; then
+            echo "::error::IPA version $V ($B) does not match expected $APP_VERSION ($APP_BUILD)"
+            exit 1
+          fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: MangoIDE ${{ env.APP_VERSION }} (build ${{ github.run_number }})
+          body: |
+            MangoIDE version ${{ env.APP_VERSION }} (build ${{ github.run_number }}), unsigned, from ${{ github.sha }}.
+            Upload MangoIDE.ipa to Mango Signer; it will install as an update over any earlier build.
+          files: MangoIDE.ipa
+          make_latest: true
