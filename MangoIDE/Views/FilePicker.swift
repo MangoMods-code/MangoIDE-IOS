@@ -49,8 +49,6 @@ enum FilePicker {
             let delegate = Delegate(onPick: onPick)
             active = delegate
             picker.delegate = delegate
-            picker.modalPresentationStyle = .formSheet
-            picker.presentationController?.delegate = delegate
             top.present(picker, animated: true)
         }
     }

@@ -235,6 +235,7 @@ struct SidebarView: View {
                         Button { router.show(.newProject) } label: { Label("New Project", systemImage: "plus") }
                         Divider()
                         Button { router.show(.pickProjectsFolder) } label: { Label("Change Projects Folder…", systemImage: "folder") }
+                        Button { workspace.useBuiltInProjectsFolder() } label: { Label("Use MangoIDE › Projects", systemImage: "iphone") }
                         Button(role: .destructive) { workspace.clearProjectsRoot() } label: { Label("Remove Projects Folder", systemImage: "minus.circle") }
                     } label: { Image(systemName: "ellipsis.circle").padding(.horizontal, 4) }
                 }
@@ -242,7 +243,10 @@ struct SidebarView: View {
             }
         } else {
             Section {
-                Button { router.show(.pickProjectsFolder) } label: {
+                Menu {
+                    Button { router.show(.pickProjectsFolder) } label: { Label("Pick a Folder from Files…", systemImage: "folder") }
+                    Button { workspace.useBuiltInProjectsFolder() } label: { Label("Use MangoIDE › Projects", systemImage: "iphone") }
+                } label: {
                     Label("Choose Your Projects Folder…", systemImage: "square.grid.2x2")
                         .font(.subheadline)
                 }

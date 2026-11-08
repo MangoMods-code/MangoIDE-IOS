@@ -318,6 +318,12 @@ final class Workspace: ObservableObject {
         refresh()
     }
 
+    /// Use MangoIDE's own Projects folder (visible in the Files app) as the projects folder.
+    func useBuiltInProjectsFolder() {
+        try? fm.createDirectory(at: projectsFolder, withIntermediateDirectories: true)
+        setProjectsRoot(projectsFolder)
+    }
+
     func clearProjectsRoot() {
         projectsRoot = nil
         activeProject = nil
