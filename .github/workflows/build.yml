@@ -55,6 +55,7 @@ jobs:
           V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Payload/MangoIDE.app/Info.plist)
           B=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Payload/MangoIDE.app/Info.plist)
           echo "IPA reports version $V (build $B)"
+          echo "IPA bundle ID: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Payload/MangoIDE.app/Info.plist)"
           if [ "$V" != "$APP_VERSION" ] || [ "$B" != "$APP_BUILD" ]; then
             echo "::error::IPA version $V ($B) does not match expected $APP_VERSION ($APP_BUILD)"
             exit 1

@@ -35,7 +35,9 @@ targets:
       - package: Unrar
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mangomods.mangoide
+        # Matches the App ID in the signing certificate's profile, so iOS grants file/folder access.
+        # If the certificate changes to a different App ID, change this to match.
+        PRODUCT_BUNDLE_IDENTIFIER: app.lotus9796.mulberry6185
         PRODUCT_NAME: MangoIDE
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: MangoIDE/Info.plist
