@@ -52,6 +52,19 @@ final class AppSettings: ObservableObject {
     @Published var consoleFontSize: Double { didSet { put(consoleFontSize, "consoleFontSize") } }
     @Published var consoleHeight: Double { didSet { put(consoleHeight, "consoleHeight") } }
     @Published var showStatusBar: Bool { didSet { put(showStatusBar, "showStatusBar") } }
+    @Published var themeControlsApp: Bool { didSet { put(themeControlsApp, "themeControlsApp") } }
+    @Published var autoHolidayThemes: Bool { didSet { put(autoHolidayThemes, "autoHolidayThemes") } }
+    @Published var showEffects: Bool { didSet { put(showEffects, "showEffects") } }
+    @Published var effectIntensity: Double { didSet { put(effectIntensity, "effectIntensity") } }
+
+    // MARK: Background (image, GIF, video or Live Photo)
+    @Published var backgroundKind: String { didSet { put(backgroundKind, "backgroundKind") } }
+    @Published var backgroundFile: String { didSet { put(backgroundFile, "backgroundFile") } }
+    @Published var backgroundStrength: Double { didSet { put(backgroundStrength, "backgroundStrength") } }
+    @Published var backgroundDim: Double { didSet { put(backgroundDim, "backgroundDim") } }
+    @Published var backgroundBlur: Double { didSet { put(backgroundBlur, "backgroundBlur") } }
+    @Published var backgroundFit: String { didSet { put(backgroundFit, "backgroundFit") } }
+    @Published var animateBackground: Bool { didSet { put(animateBackground, "animateBackground") } }
 
     // MARK: Files
     @Published var showHiddenFiles: Bool { didSet { put(showHiddenFiles, "showHiddenFiles") } }
@@ -124,6 +137,17 @@ final class AppSettings: ObservableObject {
         consoleFontSize = AppSettings.v("consoleFontSize", 13.0)
         consoleHeight = AppSettings.v("consoleHeight", 0.33)
         showStatusBar = AppSettings.v("showStatusBar", true)
+        themeControlsApp = AppSettings.v("themeControlsApp", true)
+        autoHolidayThemes = AppSettings.v("autoHolidayThemes", false)
+        showEffects = AppSettings.v("showEffects", true)
+        effectIntensity = AppSettings.v("effectIntensity", 1.0)
+        backgroundKind = AppSettings.v("backgroundKind", "none")
+        backgroundFile = AppSettings.v("backgroundFile", "")
+        backgroundStrength = AppSettings.v("backgroundStrength", 0.55)
+        backgroundDim = AppSettings.v("backgroundDim", 0.2)
+        backgroundBlur = AppSettings.v("backgroundBlur", 0.0)
+        backgroundFit = AppSettings.v("backgroundFit", "fill")
+        animateBackground = AppSettings.v("animateBackground", true)
 
         showHiddenFiles = AppSettings.v("showHiddenFiles", false)
         foldersFirst = AppSettings.v("foldersFirst", true)
@@ -178,6 +202,10 @@ final class AppSettings: ObservableObject {
         showTabCloseButtons = fresh.showTabCloseButtons; sidebarWidth = fresh.sidebarWidth
         splitOrientation = fresh.splitOrientation; consoleFontSize = fresh.consoleFontSize
         consoleHeight = fresh.consoleHeight; showStatusBar = fresh.showStatusBar
+        themeControlsApp = fresh.themeControlsApp; autoHolidayThemes = fresh.autoHolidayThemes
+        showEffects = fresh.showEffects; effectIntensity = fresh.effectIntensity
+        backgroundStrength = fresh.backgroundStrength; backgroundDim = fresh.backgroundDim
+        backgroundBlur = fresh.backgroundBlur; backgroundFit = fresh.backgroundFit; animateBackground = fresh.animateBackground
         showHiddenFiles = fresh.showHiddenFiles; foldersFirst = fresh.foldersFirst; sortMode = fresh.sortMode
         confirmDelete = fresh.confirmDelete; restoreTabs = fresh.restoreTabs; maxTabs = fresh.maxTabs
         defaultExtension = fresh.defaultExtension; projectReadme = fresh.projectReadme
@@ -191,6 +219,23 @@ final class AppSettings: ObservableObject {
     }
 
     // MARK: Derived values
+
+    /// The theme in use right now (a holiday theme when automatic holidays are on and it's that time).
+    var effectiveThemeID: String {
+        autoHolidayThemes ? (Holidays.current() ?? themeID) : themeID
+    }
+
+    static var backgroundsFolder: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("Backgrounds", isDirectory: true)
+    }
+
+    var backgroundURL: URL? {
+        guard backgroundKind != "none", !backgroundFile.isEmpty else { return nil }
+        return AppSettings.backgroundsFolder.appendingPathComponent(backgroundFile)
+    }
+
+    var backgroundActive: Bool { backgroundURL != nil }
 
     var colorSchemeOverride: ColorScheme? {
         switch appearance {

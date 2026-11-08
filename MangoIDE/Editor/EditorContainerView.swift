@@ -16,6 +16,11 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     var snippetProvider: (() -> [Snippet])?
 
     private var highlightWork: DispatchWorkItem?
+    private var highlightGeneration = 0
+    private var isReplacing = false
+    private static let highlightQueue = DispatchQueue(label: "mango.highlight", qos: .userInitiated)
+    /// How see-through the editor is (0 = solid). Used when a background image/video is set.
+    var transparency: CGFloat = 0 { didSet { if transparency != oldValue { applyBackgroundColors() } } }
     private var gutterWidth: CGFloat = 0
     private var accessory: AccessoryBar?
 
@@ -70,16 +75,13 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         theme = newTheme
         language = newLanguage
 
-        textView.backgroundColor = newTheme.bg
-        backgroundColor = newTheme.bg
+        applyBackgroundColors()
         textView.tintColor = UIColor(hex: newTheme.cursor)
         textView.keyboardAppearance = newTheme.isDark ? .dark : .light
         textView.indicatorStyle = newTheme.isDark ? .white : .black
         textView.spellCheckingType = newConfig.spellCheck ? .yes : .no
         textView.autocorrectionType = newConfig.autocorrect ? .yes : .no
         textView.wraps = newConfig.wordWrap
-        textView.typingAttributes = SyntaxHighlighter.baseAttributes(theme: newTheme, config: newConfig)
-        gutter.backgroundColor = UIColor(hex: newTheme.gutterBackground)
 
         if accessoryChanged {
             if newConfig.showAccessory {
@@ -95,17 +97,45 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         } else if themeChanged {
             accessory?.applyTheme(newTheme)
         }
+        if configChanged || themeChanged {
+            applyBaseAttributes()
+        }
         updateGutterWidth()
-        highlightNow()
+        highlightNow(sync: true)
         setNeedsLayout()
+    }
+
+    private func applyBackgroundColors() {
+        let alpha = 1 - max(0, min(0.95, transparency))
+        textView.backgroundColor = theme.bg.withAlphaComponent(alpha)
+        backgroundColor = .clear
+        gutter.backgroundColor = UIColor(hex: theme.gutterBackground).withAlphaComponent(alpha)
+        gutter.isOpaque = alpha >= 1
+        gutter.setNeedsDisplay()
+    }
+
+    /// Font, spacing and tab stops for the whole text. Only needed when those settings change.
+    private func applyBaseAttributes() {
+        guard let config else { return }
+        let base = SyntaxHighlighter.baseAttributes(theme: theme, config: config)
+        let storage = textView.textStorage
+        storage.beginEditing()
+        storage.setAttributes(base, range: NSRange(location: 0, length: storage.length))
+        storage.endEditing()
+        textView.typingAttributes = base
     }
 
     func setText(_ text: String) {
         let sel = textView.selectedRange
         let offset = textView.contentOffset
-        textView.text = text
+        if let config {
+            textView.attributedText = NSAttributedString(string: text, attributes: SyntaxHighlighter.baseAttributes(theme: theme, config: config))
+            textView.typingAttributes = SyntaxHighlighter.baseAttributes(theme: theme, config: config)
+        } else {
+            textView.text = text
+        }
         recomputeLines()
-        highlightNow()
+        highlightNow(sync: true)
         let len = textView.textStorage.length
         textView.selectedRange = NSRange(location: min(sel.location, len), length: 0)
         textView.setContentOffset(offset, animated: false)
@@ -114,12 +144,22 @@ final class EditorContainerView: UIView, UITextViewDelegate {
 
     // MARK: Change handling
 
+    /// Where each line begins, read in bulk chunks straight from the text storage (fast even for big files).
     private func recomputeLines() {
+        let ns = textView.textStorage.string as NSString
+        let length = ns.length
         var starts = [0]
-        var i = 0
-        for c in textView.textStorage.string.utf16 {
-            i += 1
-            if c == 10 { starts.append(i) }
+        starts.reserveCapacity(max(16, lineStarts.count + 8))
+        let chunk = 16_384
+        var buffer = [unichar](repeating: 0, count: chunk)
+        var offset = 0
+        while offset < length {
+            let n = min(chunk, length - offset)
+            buffer.withUnsafeMutableBufferPointer { buf in
+                ns.getCharacters(buf.baseAddress!, range: NSRange(location: offset, length: n))
+                for i in 0..<n where buf[i] == 10 { starts.append(offset + i + 1) }
+            }
+            offset += n
         }
         lineStarts = starts
         updateGutterWidth()
@@ -143,6 +183,7 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     }
 
     func handleChange() {
+        if isReplacing { return }
         recomputeLines()
         onTextChange?(textView.textStorage.string)
         scheduleHighlight()
@@ -153,18 +194,40 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     private func scheduleHighlight() {
         highlightWork?.cancel()
         let len = textView.textStorage.length
-        let delay = len < 20_000 ? 0.08 : (len < 100_000 ? 0.25 : 0.6)
+        let delay = len < 20_000 ? 0.05 : (len < 100_000 ? 0.15 : 0.35)
         let work = DispatchWorkItem { [weak self] in self?.highlightNow() }
         highlightWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    func highlightNow() {
+    /// Colors the text. Small files color instantly; bigger ones are worked out in the
+    /// background and applied only if nothing changed meanwhile, so typing never waits on it.
+    func highlightNow(sync: Bool = false) {
         guard let config else { return }
         if textView.markedTextRange != nil { scheduleHighlight(); return }
-        SyntaxHighlighter.highlight(textView.textStorage, language: language, theme: theme, config: config)
-        textView.typingAttributes = SyntaxHighlighter.baseAttributes(theme: theme, config: config)
-        gutter.setNeedsDisplay()
+        highlightWork?.cancel()
+        highlightGeneration += 1
+        let gen = highlightGeneration
+        let storage = textView.textStorage
+        let length = storage.length
+        let lang = language, th = theme
+        guard SyntaxHighlighter.shouldColor(length: length, language: lang, config: config) else {
+            SyntaxHighlighter.applyColors([], to: storage, foreground: th.fg)
+            return
+        }
+        let text = String(storage.string)
+        if sync && length < 30_000 {
+            SyntaxHighlighter.applyColors(SyntaxHighlighter.spans(for: text, language: lang, theme: th), to: storage, foreground: th.fg)
+            return
+        }
+        EditorContainerView.highlightQueue.async { [weak self] in
+            let spans = SyntaxHighlighter.spans(for: text, language: lang, theme: th)
+            DispatchQueue.main.async {
+                guard let self, self.highlightGeneration == gen, self.textView.textStorage.length == length,
+                      self.textView.markedTextRange == nil else { return }
+                SyntaxHighlighter.applyColors(spans, to: self.textView.textStorage, foreground: th.fg)
+            }
+        }
     }
 
     private func reportCursor() {
@@ -182,7 +245,9 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         guard let start = textView.position(from: textView.beginningOfDocument, offset: safe.location),
               let end = textView.position(from: start, offset: safe.length),
               let tr = textView.textRange(from: start, to: end) else { return }
+        isReplacing = true
         textView.replace(tr, withText: string)
+        isReplacing = false
         let newLen = (string as NSString).length
         if select {
             textView.selectedRange = NSRange(location: safe.location, length: newLen)
@@ -377,7 +442,7 @@ final class GutterView: UIView {
     override func draw(_ rect: CGRect) {
         guard let tv = textView, let owner, let config = owner.config else { return }
         let theme = owner.theme
-        UIColor(hex: theme.gutterBackground).setFill()
+        (backgroundColor ?? UIColor(hex: theme.gutterBackground)).setFill()
         UIRectFill(bounds)
 
         let lm = tv.layoutManager

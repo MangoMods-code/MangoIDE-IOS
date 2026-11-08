@@ -20,8 +20,8 @@ final class EditorState: ObservableObject {
     @Published var panes: [PaneState] = [PaneState()]
     @Published var focusedPane = 0
     @Published var closeRequest: CloseRequest?
-    @Published var cursorLine = 1
-    @Published var cursorColumn = 1
+    /// Cursor position lives in its own object so moving the caret only redraws the status bar.
+    let cursor = CursorModel()
 
     private var textViews: [UUID: WeakTextView] = [:]
     private var didRestore = false
@@ -190,6 +190,9 @@ final class EditorState: ObservableObject {
 
     func saveAll() { documents.values.filter { $0.isDirty }.forEach { $0.save() } }
 
+    /// Synchronous save for when the app is leaving the foreground.
+    func saveAllNow() { documents.values.forEach { $0.saveNow() } }
+
     var dirtyCount: Int { documents.values.filter { $0.isDirty }.count }
 
     // MARK: File system changes
@@ -282,5 +285,15 @@ final class EditorState: ObservableObject {
         guard let tv = activeTextView else { return }
         tv.becomeFirstResponder()
         tv.findInteraction?.presentFindNavigator(showingReplace: replace)
+    }
+}
+
+final class CursorModel: ObservableObject {
+    @Published private(set) var line = 1
+    @Published private(set) var column = 1
+
+    func update(line: Int, column: Int) {
+        if self.line != line { self.line = line }
+        if self.column != column { self.column = column }
     }
 }

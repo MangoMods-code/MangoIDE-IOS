@@ -86,10 +86,11 @@ struct DocumentContent: View {
                     Text(e).font(.caption).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).padding(6).background(Color.red)
                 }
-                CodeEditorView(document: doc, paneID: paneID,
-                               theme: extensions.theme(id: settings.themeID),
+                CodeEditorView(document: doc, contentVersion: doc.contentVersion, paneID: paneID,
+                               theme: extensions.theme(id: settings.effectiveThemeID),
                                language: extensions.language(for: doc.url),
                                config: settings.editorConfig,
+                               transparency: settings.backgroundActive ? CGFloat(settings.backgroundStrength) : 0,
                                editor: editor,
                                onFocus: { [weak ed = editor, index] in
                                    guard let ed, ed.focusedPane != index else { return }
@@ -161,7 +162,7 @@ struct TabBar: View {
             }
         }
         .frame(height: settings.compactTabs ? 32 : 38)
-        .background(.bar)
+        .chromeBackground()
         .overlay(alignment: .bottom) { Rectangle().fill(Color(uiColor: .separator)).frame(height: 0.5) }
     }
 
@@ -240,9 +241,16 @@ struct WelcomeView: View {
     @EnvironmentObject var editor: EditorState
     @EnvironmentObject var router: Router
 
-    private var projects: [FileItem] {
-        if workspace.projectsRoot != nil { return Array(workspace.projects().prefix(8)) }
-        return workspace.children(of: workspace.projectsFolder).filter { $0.isDirectory }
+    @State private var projects: [FileItem] = []
+
+    private func loadProjects() {
+        let ws = workspace
+        DispatchQueue.global(qos: .userInitiated).async {
+            let list: [FileItem] = ws.projectsRoot != nil
+                ? Array(ws.projects().prefix(8))
+                : Array(ws.children(of: ws.projectsFolder).filter { $0.isDirectory }.prefix(8))
+            DispatchQueue.main.async { projects = list }
+        }
     }
 
     var body: some View {
@@ -282,7 +290,8 @@ struct WelcomeView: View {
             .frame(maxWidth: 520, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .id(workspace.revision)
+        .onAppear(perform: loadProjects)
+        .onChange(of: workspace.revision) { _ in loadProjects() }
     }
 
     private func openProject(_ dir: URL) {

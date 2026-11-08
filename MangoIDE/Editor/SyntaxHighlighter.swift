@@ -21,6 +21,7 @@ final class SyntaxHighlighter {
     }
 
     private static var cache: [String: Rules] = [:]
+    private static let cacheLock = NSLock()
 
     private static func words(_ list: [String]?, caseInsensitive: Bool) -> NSRegularExpression? {
         guard let list, !list.isEmpty else { return nil }
@@ -35,6 +36,7 @@ final class SyntaxHighlighter {
     }
 
     private static func rules(for lang: LanguageDef) -> Rules {
+        cacheLock.lock(); defer { cacheLock.unlock() }
         if let r = cache[lang.id] { return r }
         let ci = lang.caseInsensitive ?? false
         var r = Rules()
@@ -71,9 +73,11 @@ final class SyntaxHighlighter {
         return r
     }
 
-    static func clearCache() { cache = [:] }
+    static func clearCache() { cacheLock.lock(); cache = [:]; cacheLock.unlock() }
 
     // MARK: Highlight
+
+    struct Span { let range: NSRange; let color: UIColor }
 
     static func baseAttributes(theme: EditorTheme, config: EditorConfig) -> [NSAttributedString.Key: Any] {
         let font = config.font()
@@ -86,33 +90,26 @@ final class SyntaxHighlighter {
         return [.font: font, .foregroundColor: theme.fg, .paragraphStyle: para]
     }
 
-    static func highlight(_ storage: NSTextStorage, language: LanguageDef, theme: EditorTheme, config: EditorConfig) {
-        let full = NSRange(location: 0, length: storage.length)
-        let base = baseAttributes(theme: theme, config: config)
-        storage.beginEditing()
-        storage.setAttributes(base, range: full)
-        if config.syntaxHighlighting && storage.length <= config.largeFileThreshold && language.id != "plaintext" {
-            colorize(storage, language: language, theme: theme, config: config)
-        }
-        storage.endEditing()
+    static func shouldColor(length: Int, language: LanguageDef, config: EditorConfig) -> Bool {
+        config.syntaxHighlighting && length <= config.largeFileThreshold && language.id != "plaintext"
     }
 
-    private static func colorize(_ storage: NSTextStorage, language: LanguageDef, theme: EditorTheme, config: EditorConfig) {
-        let text = storage.string
+    /// Works out every colored range. Safe to call off the main thread.
+    static func spans(for text: String, language: LanguageDef, theme: EditorTheme) -> [Span] {
         let ns = text as NSString
         let full = NSRange(location: 0, length: ns.length)
         let r = rules(for: language)
-        let bold = config.font(bold: true)
+        var out: [Span] = []
+        out.reserveCapacity(1024)
 
-        func paint(_ re: NSRegularExpression?, _ hex: String, group: Int = 0, boldFont: Bool = false) {
+        func paint(_ re: NSRegularExpression?, _ hex: String, group: Int = 0) {
             guard let re else { return }
             let color = UIColor(hex: hex)
             re.enumerateMatches(in: text, options: [], range: full) { m, _, _ in
                 guard let m else { return }
                 let range = m.range(at: group)
                 guard range.location != NSNotFound, range.length > 0 else { return }
-                storage.addAttribute(.foregroundColor, value: color, range: range)
-                if boldFont { storage.addAttribute(.font, value: bold, range: range) }
+                out.append(Span(range: range, color: color))
             }
         }
 
@@ -121,7 +118,7 @@ final class SyntaxHighlighter {
         paint(r.number, theme.number)
         paint(r.types, theme.type)
         paint(r.literals, theme.number)
-        paint(r.keywords, theme.keyword, boldFont: false)
+        paint(r.keywords, theme.keyword)
         paint(r.decorator, theme.attribute)
         paint(r.preprocessor, theme.attribute)
         paint(r.cssProperty, theme.function)
@@ -130,21 +127,25 @@ final class SyntaxHighlighter {
         paint(r.attributeName, theme.attribute)
         paint(r.mdEmphasis, theme.type)
         paint(r.mdLink, theme.function)
-        paint(r.mdHeading, theme.keyword, boldFont: true)
+        paint(r.mdHeading, theme.keyword)
 
         // Strings and comments last so they win over everything inside them.
+        let commentColor = UIColor(hex: theme.comment), stringColor = UIColor(hex: theme.string)
         scanStringsAndComments(text, language: language) { range, isComment in
-            storage.addAttribute(.foregroundColor, value: UIColor(hex: isComment ? theme.comment : theme.string), range: range)
-            if isComment { storage.addAttribute(.font, value: italic(config.font()), range: range) }
+            out.append(Span(range: range, color: isComment ? commentColor : stringColor))
         }
+        return out
     }
 
-    private static var italicCache: [UIFont: UIFont] = [:]
-    private static func italic(_ f: UIFont) -> UIFont {
-        if let c = italicCache[f] { return c }
-        let out = f.fontDescriptor.withSymbolicTraits(.traitItalic).map { UIFont(descriptor: $0, size: f.pointSize) } ?? f
-        italicCache[f] = out
-        return out
+    /// Only touches colors, so UIKit redraws without re-laying out the text.
+    static func applyColors(_ spans: [Span], to storage: NSTextStorage, foreground: UIColor) {
+        let len = storage.length
+        storage.beginEditing()
+        storage.addAttribute(.foregroundColor, value: foreground, range: NSRange(location: 0, length: len))
+        for s in spans where NSMaxRange(s.range) <= len {
+            storage.addAttribute(.foregroundColor, value: s.color, range: s.range)
+        }
+        storage.endEditing()
     }
 
     /// Single pass over UTF-16 so ranges line up with NSString.

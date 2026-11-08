@@ -21,26 +21,40 @@ final class SidebarModel: ObservableObject {
         })
     }
 
+    private var rebuildGeneration = 0
+    private static let listQueue = DispatchQueue(label: "mango.sidebar", qos: .userInitiated)
+
+    /// Lists folders in the background and swaps the result in, so big or slow (iCloud) folders never freeze the UI.
     func rebuild(_ workspace: Workspace) {
-        var out: [String: [TreeRow]] = [:]
+        rebuildGeneration += 1
+        let gen = rebuildGeneration
         var roots = [workspace.root]
         roots += workspace.linkedFolders.map { $0.url }
         if let ap = workspace.activeProject { roots.append(ap) }
-        projects = workspace.projects()
-        for root in roots {
-            var list: [TreeRow] = []
-            flatten(root, depth: 0, into: &list, workspace)
-            out[root.path] = list
+        let open = expanded
+        SidebarModel.listQueue.async { [weak self] in
+            var out: [String: [TreeRow]] = [:]
+            for root in roots {
+                var list: [TreeRow] = []
+                SidebarModel.flatten(root, depth: 0, expanded: open, into: &list, workspace)
+                out[root.path] = list
+            }
+            let projects = workspace.projects()
+            DispatchQueue.main.async {
+                guard let self, self.rebuildGeneration == gen else { return }
+                self.rows = out
+                self.projects = projects
+            }
         }
-        rows = out
         if !query.isEmpty { search(workspace) }
     }
 
-    private func flatten(_ dir: URL, depth: Int, into list: inout [TreeRow], _ workspace: Workspace) {
+    private static func flatten(_ dir: URL, depth: Int, expanded: Set<String>, into list: inout [TreeRow], _ workspace: Workspace) {
         for child in workspace.children(of: dir) {
             list.append(TreeRow(item: child, depth: depth))
+            if list.count > 5000 { return }
             if child.isDirectory && expanded.contains(child.url.path) && depth < 14 {
-                flatten(child.url, depth: depth + 1, into: &list, workspace)
+                flatten(child.url, depth: depth + 1, expanded: expanded, into: &list, workspace)
             }
         }
     }
@@ -110,6 +124,7 @@ struct SidebarView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var router: Router
     @StateObject private var model = SidebarModel()
+    @Environment(\.chrome) private var chrome
 
     var body: some View {
         VStack(spacing: 0) {
@@ -160,8 +175,10 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(chrome.background == nil && !chrome.translucent ? .automatic : .hidden)
             .environment(\.defaultMinListRowHeight, 30)
         }
+        .chromeBackground()
         .onAppear { model.rebuild(workspace) }
         .onChange(of: workspace.revision) { _ in model.rebuild(workspace) }
         .onChange(of: workspace.linkedFolders) { _ in model.rebuild(workspace) }

@@ -5,6 +5,7 @@ struct ConsoleView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var router: Router
     @State private var showInput = false
+    @Environment(\.chrome) private var chrome
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +30,7 @@ struct ConsoleView: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 36)
-            .background(.bar)
+            .chromeBackground()
             if showInput {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Program input (stdin), one value per line").font(.caption2).foregroundStyle(.secondary)
@@ -61,12 +62,12 @@ struct ConsoleView: View {
                     .font(.system(size: CGFloat(settings.consoleFontSize), design: .monospaced))
                     .padding(10)
                 }
-                .onChange(of: console.lines.count) { _ in
+                .onChange(of: console.lines.last?.id) { _ in
                     if let last = console.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(chrome.background.map { $0.opacity(chrome.translucent ? 0.8 : 1) } ?? Color(uiColor: .secondarySystemBackground))
     }
 
     private func color(_ k: ConsoleLine.Kind) -> Color {

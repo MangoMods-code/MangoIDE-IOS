@@ -141,24 +141,69 @@ struct KeyboardSettings: View {
 struct AppearanceSettings: View {
     @EnvironmentObject var s: AppSettings
     @EnvironmentObject var extensions: ExtensionManager
+    @EnvironmentObject var router: Router
+
+    private var holidayNow: String? {
+        Holidays.current().map { extensions.theme(id: $0).name }
+    }
+
     var body: some View {
         Form {
+            Section {
+                Toggle("Theme Styles Whole App", isOn: $s.themeControlsApp)
+                Toggle("Automatic Holiday Themes", isOn: $s.autoHolidayThemes)
+                Toggle("Seasonal Effects", isOn: $s.showEffects)
+                if s.showEffects {
+                    Stepper2(title: "Effect Amount", value: $s.effectIntensity, range: 0.25...2.5, step: 0.25, format: { String(format: "%.0f%%", $0 * 100) })
+                }
+            } footer: {
+                Text("Whole-app themes also color the bars, sidebar, tabs, console and font style, and switch light/dark for you. Automatic holiday themes switch to a holiday look on those days\(holidayNow.map { " (today: \($0))" } ?? "") and back afterwards.")
+            }
+
+            Section {
+                if s.backgroundActive {
+                    Picker("Fit", selection: $s.backgroundFit) {
+                        Text("Fill Screen").tag("fill"); Text("Fit Whole Image").tag("fit")
+                    }
+                    Stepper2(title: "Show Through Editor", value: $s.backgroundStrength, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
+                    Stepper2(title: "Darken", value: $s.backgroundDim, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
+                    Stepper2(title: "Frosted Glass", value: $s.backgroundBlur, range: 0...1, step: 0.1, format: { String(format: "%.0f%%", $0 * 100) })
+                    if s.backgroundKind != "image" {
+                        Toggle("Animate", isOn: $s.animateBackground)
+                    }
+                }
+                Button { pickPhotos() } label: { Label("Choose from Photos…", systemImage: "photo.on.rectangle") }
+                Button { pickFiles() } label: { Label("Choose from Files…", systemImage: "folder") }
+                if s.backgroundActive {
+                    Button(role: .destructive) { BackgroundStore.remove() } label: { Label("Remove Background", systemImage: "xmark.circle") }
+                }
+            } header: { Text("Background") } footer: {
+                Text("Use a photo, GIF, video or Live Photo (it plays as a loop, muted). It pauses whenever MangoIDE isn't on screen.")
+            }
+
             Section("App") {
                 Picker("Appearance", selection: $s.appearance) {
-                    Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
+                    Text("Match Theme / System").tag("system"); Text("Always Light").tag("light"); Text("Always Dark").tag("dark")
                 }
-                Picker("Accent Color", selection: $s.accentName) {
-                    ForEach(AppSettings.accents, id: \.0) { a in
-                        Label { Text(a.0) } icon: { Circle().fill(a.1).frame(width: 14, height: 14) }.tag(a.0)
+                if !s.themeControlsApp {
+                    Picker("Accent Color", selection: $s.accentName) {
+                        ForEach(AppSettings.accents, id: \.0) { a in Text(a.0).tag(a.0) }
                     }
                 }
             }
-            Section("Editor Theme") {
-                ForEach(extensions.allThemes) { t in
-                    Button { s.themeID = t.id } label: { ThemeRow(theme: t, selected: s.themeID == t.id) }
-                        .buttonStyle(.plain)
+
+            ForEach(ThemeLibrary.groups + extensionGroup, id: \.self) { group in
+                let list = extensions.allThemes.filter { $0.group == group }
+                if !list.isEmpty {
+                    Section(group) {
+                        ForEach(list) { t in
+                            Button { s.themeID = t.id } label: { ThemeRow(theme: t, selected: s.themeID == t.id) }
+                                .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
+
             Section("Layout") {
                 Toggle("Status Bar", isOn: $s.showStatusBar)
                 Toggle("File Icons", isOn: $s.showFileIcons)
@@ -171,7 +216,24 @@ struct AppearanceSettings: View {
                 Stepper2(title: "Console Text Size", value: $s.consoleFontSize, range: 9...22, step: 1)
             }
         }
-        .navigationTitle("Appearance")
+        .navigationTitle("Appearance & Themes")
+    }
+
+    private var extensionGroup: [String] {
+        let known = Set(ThemeLibrary.groups)
+        return Array(Set(extensions.allThemes.map { $0.group }).subtracting(known)).sorted()
+    }
+
+    private func pickPhotos() {
+        BackgroundStore.pickFromPhotos { err in
+            if let err { router.fail(err) } else { router.flash("Background set") }
+        }
+    }
+
+    private func pickFiles() {
+        BackgroundStore.pickFromFiles { err in
+            if let err { router.fail(err) } else { router.flash("Background set") }
+        }
     }
 }
 
@@ -190,7 +252,7 @@ struct ThemeRow: View {
                     Text("42").foregroundStyle(Color(hex: theme.number))
                     Text(")").foregroundStyle(Color(hex: theme.foreground))
                 }
-                Text("// \(theme.name)").foregroundStyle(Color(hex: theme.comment))
+                Text("// \(theme.emoji.map { $0 + " " } ?? "")\(theme.name)").foregroundStyle(Color(hex: theme.comment))
             }
             .font(.system(size: 13, design: .monospaced))
             .padding(10)

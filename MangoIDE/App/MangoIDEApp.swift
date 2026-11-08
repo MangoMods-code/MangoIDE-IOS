@@ -20,8 +20,6 @@ struct MangoIDEApp: App {
                 .environmentObject(extensions)
                 .environmentObject(console)
                 .environmentObject(router)
-                .preferredColorScheme(settings.colorSchemeOverride)
-                .tint(settings.accentColor)
                 .onAppear {
                     router.editor = editor
                     workspace.setUp()
@@ -37,7 +35,7 @@ struct MangoIDEApp: App {
                 }
         }
         .onChange(of: scenePhase) { phase in
-            if phase != .active { editor.saveAll(); editor.saveSession() }
+            if phase != .active { editor.saveAllNow(); editor.saveSession() }
         }
     }
 }

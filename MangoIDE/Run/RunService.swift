@@ -10,17 +10,55 @@ struct ConsoleLine: Identifiable {
 }
 
 final class ConsoleModel: ObservableObject {
-    @Published var lines: [ConsoleLine] = []
+    @Published private(set) var lines: [ConsoleLine] = []
     @Published var isVisible = false
     @Published var isRunning = false
     @Published var stdin = ""
     @Published var preview: PreviewItem?
 
-    func clear() { lines = [] }
+    static let maxLines = 2000
+    static let maxLineLength = 4000
+
+    /// Output is collected here and pushed to the screen at most ~20 times a second,
+    /// so a program printing thousands of lines can't freeze the app.
+    private var pending: [ConsoleLine] = []
+    private let lock = NSLock()
+    private var flushScheduled = false
+
+    func clear() {
+        lock.lock(); pending.removeAll(); lock.unlock()
+        lines = []
+    }
 
     func append(_ kind: ConsoleLine.Kind, _ text: String) {
-        let add = { self.lines.append(ConsoleLine(kind: kind, text: text)); if self.lines.count > 3000 { self.lines.removeFirst(500) } }
-        if Thread.isMainThread { add() } else { DispatchQueue.main.async(execute: add) }
+        var parts = text.components(separatedBy: "\n")
+        if parts.count > ConsoleModel.maxLines { parts = Array(parts.suffix(ConsoleModel.maxLines)) }
+        let new = parts.map { p -> ConsoleLine in
+            let t = p.count > ConsoleModel.maxLineLength ? String(p.prefix(ConsoleModel.maxLineLength)) + " …" : p
+            return ConsoleLine(kind: kind, text: t)
+        }
+        lock.lock()
+        pending.append(contentsOf: new)
+        if pending.count > ConsoleModel.maxLines { pending.removeFirst(pending.count - ConsoleModel.maxLines) }
+        let needsSchedule = !flushScheduled
+        flushScheduled = true
+        lock.unlock()
+        if needsSchedule {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.flush() }
+        }
+    }
+
+    private func flush() {
+        lock.lock()
+        let batch = pending
+        pending.removeAll()
+        flushScheduled = false
+        lock.unlock()
+        guard !batch.isEmpty else { return }
+        var next = lines
+        next.append(contentsOf: batch)
+        if next.count > ConsoleModel.maxLines { next.removeFirst(next.count - ConsoleModel.maxLines) }
+        lines = next
     }
 
     var plainText: String { lines.map { $0.text }.joined(separator: "\n") }
@@ -77,11 +115,22 @@ enum RunService {
 
     // MARK: JavaScript (on device)
 
-    private static let jsQueue = DispatchQueue(label: "mango.js", qos: .userInitiated)
+    /// JavaScriptCore can stop a script that runs too long (e.g. an infinite loop). The function is
+    /// exported by the framework but not in the public headers, so it's looked up at runtime.
+    private typealias SetLimitFn = @convention(c) (OpaquePointer?, Double, (@convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Bool)?, UnsafeMutableRawPointer?) -> Void
+    private static let setTimeLimit: SetLimitFn? = {
+        guard let handle = dlopen(nil, RTLD_NOW), let sym = dlsym(handle, "JSContextGroupSetExecutionTimeLimit") else { return nil }
+        return unsafeBitCast(sym, to: SetLimitFn.self)
+    }()
 
     static func runJavaScript(_ code: String, stdin: String, strict: Bool, console: ConsoleModel, done: @escaping (Bool) -> Void) {
-        jsQueue.async {
+        // Each run gets its own queue so one stuck script can never block the next run.
+        DispatchQueue(label: "mango.js.\(UUID().uuidString)", qos: .userInitiated).async {
             guard let ctx = JSContext() else { done(false); return }
+            if let setLimit = setTimeLimit {
+                let group = JSContextGetGroup(ctx.jsGlobalContextRef)
+                setLimit(group, max(3, AppSettings.shared.runnerTimeout), { _, _ in true }, nil)
+            }
             var failed = false
             ctx.exceptionHandler = { _, ex in
                 failed = true
@@ -127,7 +176,13 @@ enum RunService {
             var clearTimeout = function() {}; var clearInterval = function() {};
             """)
             let source = (strict ? "\"use strict\";\n" : "") + code
+            let started = Date()
             ctx.evaluateScript(source)
+            if failed && Date().timeIntervalSince(started) >= max(3, AppSettings.shared.runnerTimeout) - 0.5 {
+                console.append(.err, "Stopped: the script ran longer than \(Int(max(3, AppSettings.shared.runnerTimeout))) seconds (change the limit in Settings › Run).")
+                done(false)
+                return
+            }
             // Run queued timers in order once (enough for simple async demos).
             ctx.evaluateScript("__timers.sort(function(a,b){return a.ms-b.ms}); while (__timers.length) { var t = __timers.shift(); try { t.fn(); } catch (e) { console.error(String(e)); } }")
             done(!failed)
