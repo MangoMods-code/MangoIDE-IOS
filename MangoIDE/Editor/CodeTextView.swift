@@ -50,15 +50,15 @@ final class CodeTextView: UITextView {
         if lines.count > 1 {
             for i in 1..<lines.count where !lines[i].isEmpty { lines[i] = indent + lines[i] }
         }
-        let final = lines.joined(separator: "\n")
+        let output = lines.joined(separator: "\n")
         // Put the cursor on the first empty indented line if there is one, otherwise at the end.
-        var cursor = (final as NSString).length
-        if let r = final.range(of: "\n" + indent + "    \n") ?? final.range(of: "\n" + indent + "  \n") ?? final.range(of: "\n" + indent + "\t\n") {
-            cursor = (String(final[..<r.upperBound]) as NSString).length - 1
-        } else if let r = final.range(of: "()") {
-            cursor = (String(final[..<r.lowerBound]) as NSString).length + 1
+        var cursor = (output as NSString).length
+        if let r = output.range(of: "\n" + indent + "    \n") ?? output.range(of: "\n" + indent + "  \n") ?? output.range(of: "\n" + indent + "\t\n") {
+            cursor = (String(output[..<r.upperBound]) as NSString).length - 1
+        } else if let r = output.range(of: "()") {
+            cursor = (String(output[..<r.lowerBound]) as NSString).length + 1
         }
-        owner.replace(sel, with: final, cursorOffset: cursor)
+        owner.replace(sel, with: output, cursorOffset: cursor)
         becomeFirstResponder()
     }
 

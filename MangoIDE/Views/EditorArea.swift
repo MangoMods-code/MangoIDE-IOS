@@ -137,7 +137,10 @@ struct TabBar: View {
     @EnvironmentObject var workspace: Workspace
 
     var body: some View {
-        let pane = editor.panes[index]
+        if editor.panes.indices.contains(index) { bar(editor.panes[index]) }
+    }
+
+    private func bar(_ pane: PaneState) -> some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
