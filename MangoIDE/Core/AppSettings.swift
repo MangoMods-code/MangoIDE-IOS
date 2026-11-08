@@ -116,7 +116,7 @@ final class AppSettings: ObservableObject {
         autocorrect = AppSettings.v("autocorrect", false)
         scrollPastEnd = AppSettings.v("scrollPastEnd", true)
         largeFileThreshold = AppSettings.v("largeFileThreshold", 300_000)
-        autosave = AppSettings.v("autosave", true)
+        autosave = AppSettings.v("autosave", false)
         autosaveDelay = AppSettings.v("autosaveDelay", 1.5)
         trimTrailingWhitespace = AppSettings.v("trimTrailingWhitespace", false)
         insertFinalNewline = AppSettings.v("insertFinalNewline", false)

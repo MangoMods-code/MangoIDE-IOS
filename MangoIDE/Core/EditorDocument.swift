@@ -140,6 +140,13 @@ final class EditorDocument: ObservableObject, Identifiable {
         return true
     }
 
+    /// Throw away unsaved edits: cancel any pending autosave and go back to what's on disk.
+    func discardChanges() {
+        autosaveWork?.cancel()
+        syncWork?.cancel()
+        load()
+    }
+
     /// Blocking save used when the app is about to go to the background.
     func saveNow() {
         guard isDirty, !isBinary, loadError == nil else { return }

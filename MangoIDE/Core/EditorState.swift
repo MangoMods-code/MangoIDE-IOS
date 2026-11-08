@@ -106,19 +106,42 @@ final class EditorState: ObservableObject {
         panes.indices.contains { $0 != pane && panes[$0].tabs.contains(id) }
     }
 
+    /// Unsaved tabs waiting for a Save / Discard answer (one dialog at a time).
+    private var closeQueue: [CloseRequest] = []
+
     func requestClose(_ id: UUID, pane: Int) {
         guard let d = documents[id] else { return }
         if d.isDirty && !isOpenElsewhere(id, besides: pane) {
-            if AppSettings.shared.autosave { d.save(applyCleanup: false); removeTab(id, from: pane) }
-            else { closeRequest = CloseRequest(pane: pane, doc: id) }
+            // Always ask: closing never silently saves or throws away changes.
+            guard !closeQueue.contains(where: { $0.doc == id }) && closeRequest?.doc != id else { return }
+            closeQueue.append(CloseRequest(pane: pane, doc: id))
+            showNextCloseRequest()
         } else {
             removeTab(id, from: pane)
         }
     }
 
+    private func showNextCloseRequest() {
+        guard closeRequest == nil, !closeQueue.isEmpty else { return }
+        closeRequest = closeQueue.removeFirst()
+    }
+
+    /// Save = write it then close. Discard = drop the edits (file on disk stays as last saved) then close.
     func finishClose(_ req: CloseRequest, save: Bool) {
-        if save { documents[req.doc]?.save() }
-        removeTab(req.doc, from: req.pane)
+        closeRequest = nil
+        if let d = documents[req.doc] {
+            if save { d.save() } else { d.discardChanges() }
+        }
+        // The tab may have moved panes while the dialog was up.
+        let pane = panes.firstIndex(where: { $0.tabs.contains(req.doc) }) ?? req.pane
+        removeTab(req.doc, from: pane)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.showNextCloseRequest() }
+    }
+
+    /// Cancel keeps the tab open and stops closing any others that were lined up.
+    func cancelClose() {
+        closeRequest = nil
+        closeQueue.removeAll()
     }
 
     func removeTab(_ id: UUID, from pane: Int) {
@@ -192,7 +215,11 @@ final class EditorState: ObservableObject {
     func saveAll() { documents.values.filter { $0.isDirty }.forEach { $0.save() } }
 
     /// Synchronous save for when the app is leaving the foreground.
-    func saveAllNow() { documents.values.forEach { $0.saveNow() } }
+    /// Used when the app leaves the screen. Only saves if autosave is on, so "Discard" stays meaningful.
+    func saveAllNow() {
+        guard AppSettings.shared.autosave else { return }
+        documents.values.forEach { $0.saveNow() }
+    }
 
     var dirtyCount: Int { documents.values.filter { $0.isDirty }.count }
 

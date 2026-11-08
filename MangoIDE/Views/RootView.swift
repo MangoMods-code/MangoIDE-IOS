@@ -343,12 +343,13 @@ struct RootDialogs: ViewModifier {
                 .alert("Something went wrong", isPresented: Binding(get: { router.errorMessage != nil }, set: { if !$0 { router.errorMessage = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(router.errorMessage ?? "") }
-                .confirmationDialog("Save changes to \(editor.doc(editor.closeRequest?.doc)?.name ?? "this file")?",
-                                isPresented: Binding(get: { editor.closeRequest != nil }, set: { if !$0 { editor.closeRequest = nil } }),
-                                titleVisibility: .visible) {
+                .alert("Save changes to \"\(editor.doc(editor.closeRequest?.doc)?.name ?? "this file")\"?",
+                   isPresented: Binding(get: { editor.closeRequest != nil }, set: { if !$0 && editor.closeRequest != nil { editor.cancelClose() } })) {
                 Button("Save") { if let r = editor.closeRequest { editor.finishClose(r, save: true) } }
-                Button("Don't Save", role: .destructive) { if let r = editor.closeRequest { editor.finishClose(r, save: false) } }
-                Button("Cancel", role: .cancel) { editor.closeRequest = nil }
+                Button("Discard", role: .destructive) { if let r = editor.closeRequest { editor.finishClose(r, save: false) } }
+                Button("Cancel", role: .cancel) { editor.cancelClose() }
+            } message: {
+                Text("This file has changes that aren't saved. Discard throws them away and keeps the file as it was last saved.")
             }
                 .alert("Password for \"\(router.passwordTarget?.lastPathComponent ?? "archive")\"",
                    isPresented: Binding(get: { router.passwordTarget != nil }, set: { if !$0 && router.passwordTarget != nil { router.passwordTarget = nil } })) {
