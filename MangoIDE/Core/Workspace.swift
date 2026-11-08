@@ -227,6 +227,37 @@ final class Workspace: ObservableObject {
         return out
     }
 
+    private static let ioQueue = DispatchQueue(label: "mango.import", qos: .userInitiated)
+
+    /// Same as importFiles but off the main thread. `move` is for temporary copies the picker made.
+    func importFilesInBackground(_ urls: [URL], into dir: URL? = nil, move: Bool, completion: @escaping ([URL]) -> Void) {
+        let target = dir ?? importedFolder
+        Workspace.ioQueue.async {
+            let fm = FileManager.default
+            try? fm.createDirectory(at: target, withIntermediateDirectories: true)
+            var out: [URL] = []
+            for u in urls {
+                let scoped = u.startAccessingSecurityScopedResource()
+                defer { if scoped { u.stopAccessingSecurityScopedResource() } }
+                let dest = self.uniqueURL(in: target, name: u.lastPathComponent)
+                var done = false
+                if move { done = (try? fm.moveItem(at: u, to: dest)) != nil }
+                if !done {
+                    // Use a file coordinator so iCloud files are downloaded before copying.
+                    var coordError: NSError?
+                    NSFileCoordinator().coordinate(readingItemAt: u, options: [.withoutChanges], error: &coordError) { readURL in
+                        done = (try? fm.copyItem(at: readURL, to: dest)) != nil
+                    }
+                }
+                if done { out.append(dest) }
+            }
+            DispatchQueue.main.async {
+                self.refresh()
+                completion(out)
+            }
+        }
+    }
+
     func isInside(_ url: URL, _ dir: URL) -> Bool {
         let a = url.standardizedFileURL.resolvingSymlinksInPath().path
         let b = dir.standardizedFileURL.resolvingSymlinksInPath().path

@@ -61,23 +61,38 @@ final class SidebarModel: ObservableObject {
         rebuild(workspace)
     }
 
+    private var searchGeneration = 0
+    static let heavyFolders: Set<String> = ["node_modules", ".git", "build", "DerivedData", "Pods", ".build", "dist", "target", "__pycache__", ".gradle", "vendor", ".venv", "venv"]
+
+    /// Searches file names in the background so huge folders never freeze typing.
     func search(_ workspace: Workspace) {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        searchGeneration += 1
+        let gen = searchGeneration
         guard !q.isEmpty else { results = []; return }
-        var found: [FileItem] = []
         let roots = [workspace.root] + workspace.linkedFolders.map { $0.url }
-        for root in roots {
-            guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey],
-                                                          options: AppSettings.shared.showHiddenFiles ? [] : [.skipsHiddenFiles]) else { continue }
-            for case let u as URL in en {
-                if u.lastPathComponent.lowercased().contains(q) {
+        let hidden = AppSettings.shared.showHiddenFiles
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var found: [FileItem] = []
+            outer: for root in roots {
+                guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey],
+                                                              options: hidden ? [] : [.skipsHiddenFiles]) else { continue }
+                for case let u as URL in en {
+                    if self?.searchGeneration != gen { return }
+                    let name = u.lastPathComponent
                     let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-                    found.append(FileItem(url: u, isDirectory: isDir, modified: nil, size: 0))
-                    if found.count >= 300 { break }
+                    if isDir && SidebarModel.heavyFolders.contains(name) { en.skipDescendants() }
+                    if name.lowercased().contains(q) {
+                        found.append(FileItem(url: u, isDirectory: isDir, modified: nil, size: 0))
+                        if found.count >= 300 { break outer }
+                    }
                 }
             }
+            DispatchQueue.main.async {
+                guard let self, self.searchGeneration == gen else { return }
+                self.results = found
+            }
         }
-        results = found
     }
 }
 

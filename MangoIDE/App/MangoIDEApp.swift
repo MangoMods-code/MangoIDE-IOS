@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct MangoIDEApp: App {
@@ -22,6 +23,7 @@ struct MangoIDEApp: App {
                 .preferredColorScheme(settings.colorSchemeOverride)
                 .tint(settings.accentColor)
                 .onAppear {
+                    router.editor = editor
                     workspace.setUp()
                     extensions.reload()
                     editor.restoreSession()
@@ -82,7 +84,68 @@ final class Router: ObservableObject {
     @Published var revealRequest: URL?
     private var pendingExtract: (url: URL, dir: URL?, deleteAfter: Bool)?
 
-    func show(_ s: AppSheet) { sheet = s }
+    weak var editor: EditorState?
+
+    /// File pickers are presented straight from UIKit (see FilePicker); everything else is a sheet.
+    func show(_ s: AppSheet) {
+        switch s {
+        case .importFiles(let dir):
+            FilePicker.present(types: [.item], multiple: true, asCopy: true) { [weak self] urls in
+                self?.importInBackground(urls, into: dir, move: true) { copied in
+                    if copied.count == 1, let u = copied.first, !ArchiveService.isArchive(u) { self?.editor?.open(u) }
+                }
+            }
+        case .openFile:
+            FilePicker.present(types: [.item], multiple: true, asCopy: false) { [weak self] urls in
+                let archives = urls.filter { ArchiveService.isArchive($0) }
+                if !archives.isEmpty { self?.importAndExtract(archives, move: false) }
+                for u in urls where !ArchiveService.isArchive(u) { self?.editor?.openExternal(u) }
+            }
+        case .linkFolder:
+            FilePicker.present(types: [.folder], multiple: false, asCopy: false) { [weak self] urls in
+                guard let u = urls.first else { return }
+                Workspace.shared.linkFolder(u)
+                self?.revealRequest = u
+                self?.sidebarOpen = true
+                self?.flash("Opened \(u.lastPathComponent)")
+            }
+        case .importArchive:
+            let types: [UTType] = [.zip, UTType("com.rarlab.rar-archive"), UTType(filenameExtension: "rar"), .archive].compactMap { $0 }
+            FilePicker.present(types: types, multiple: true, asCopy: true) { [weak self] urls in
+                self?.importAndExtract(urls, move: true)
+            }
+        case .installExtensionFile:
+            FilePicker.present(types: [.json, .item], multiple: false, asCopy: true) { [weak self] urls in
+                guard let u = urls.first else { return }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let data = try? Data(contentsOf: u)
+                    DispatchQueue.main.async {
+                        guard let data else { self?.errorMessage = "Couldn't read that file."; return }
+                        do { let m = try ExtensionManager.shared.install(data: data); self?.flash("Installed \(m.name)") }
+                        catch { self?.fail(error) }
+                    }
+                }
+            }
+        default:
+            sheet = s
+        }
+    }
+
+    /// Copies (or moves, for the picker's own temporary copies) files in the background so big
+    /// imports never freeze the app.
+    func importInBackground(_ urls: [URL], into dir: URL? = nil, move: Bool, then: (([URL]) -> Void)? = nil) {
+        busy = urls.count == 1 ? "Importing \(urls[0].lastPathComponent)…" : "Importing \(urls.count) items…"
+        Workspace.shared.importFilesInBackground(urls, into: dir, move: move) { [weak self] copied in
+            self?.busy = nil
+            if copied.count < urls.count {
+                self?.errorMessage = "Imported \(copied.count) of \(urls.count). Some items couldn't be copied."
+            } else {
+                self?.flash("Imported \(copied.count) item\(copied.count == 1 ? "" : "s")")
+            }
+            if let first = copied.first { self?.revealRequest = first }
+            then?(copied)
+        }
+    }
 
     func extract(_ url: URL, into dir: URL? = nil, password: String? = nil, deleteAfter: Bool = false) {
         busy = "Extracting \(url.lastPathComponent)…"
@@ -129,9 +192,12 @@ final class Router: ObservableObject {
     }
 
     /// Archives picked or shared from outside: copy into Imported, extract there, drop the copy.
-    func importAndExtract(_ urls: [URL]) {
-        let copies = Workspace.shared.importFiles(urls)
-        for c in copies { extract(c, deleteAfter: true) }
+    func importAndExtract(_ urls: [URL], move: Bool = false) {
+        busy = "Importing…"
+        Workspace.shared.importFilesInBackground(urls, into: nil, move: move) { [weak self] copies in
+            self?.busy = nil
+            for c in copies { self?.extract(c, deleteAfter: true) }
+        }
     }
 
     func compress(_ urls: [URL]) {

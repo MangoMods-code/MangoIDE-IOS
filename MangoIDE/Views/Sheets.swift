@@ -192,32 +192,40 @@ struct NewProjectSheet: View {
 struct FolderPicker: View {
     @Binding var selection: URL
     @EnvironmentObject var workspace: Workspace
+    @State private var options: [URL] = []
 
-    private var options: [URL] {
-        var out: [URL] = [workspace.root]
-        func walk(_ dir: URL, depth: Int) {
-            guard depth < 4 else { return }
-            for c in workspace.children(of: dir) where c.isDirectory {
-                out.append(c.url)
-                walk(c.url, depth: depth + 1)
+    /// Built once in the background, skipping huge dependency folders, so big linked projects can't freeze the sheet.
+    private func load() {
+        let ws = workspace
+        let current = selection
+        let linked = workspace.linkedFolders.map { $0.url }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var out: [URL] = [ws.root]
+            func walk(_ dir: URL, depth: Int, maxDepth: Int) {
+                guard depth < maxDepth, out.count < 400 else { return }
+                for c in ws.children(of: dir) where c.isDirectory && !SidebarModel.heavyFolders.contains(c.name) {
+                    out.append(c.url)
+                    walk(c.url, depth: depth + 1, maxDepth: maxDepth)
+                }
             }
+            walk(ws.root, depth: 0, maxDepth: 4)
+            for l in linked {
+                out.append(l)
+                walk(l, depth: 0, maxDepth: 3)
+            }
+            if !out.contains(where: { $0.standardizedFileURL == current.standardizedFileURL }) { out.append(current) }
+            DispatchQueue.main.async { options = out }
         }
-        walk(workspace.root, depth: 0)
-        for l in workspace.linkedFolders {
-            out.append(l.url)
-            walk(l.url, depth: 1)
-        }
-        if !out.contains(where: { $0.standardizedFileURL == selection.standardizedFileURL }) { out.append(selection) }
-        return out
     }
 
     var body: some View {
         Picker("Folder", selection: $selection) {
-            ForEach(options, id: \.self) { u in
+            ForEach(options.isEmpty ? [selection] : options, id: \.self) { u in
                 Text(workspace.displayPath(u)).tag(u)
             }
         }
         .pickerStyle(.navigationLink)
+        .onAppear { if options.isEmpty { load() } }
     }
 }
 

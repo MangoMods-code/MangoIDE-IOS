@@ -128,32 +128,8 @@ struct RootView: View {
             case .settings: SettingsView()
             case .extensions: NavigationStack { ExtensionsView() }
             case .snippets: SnippetsSheet()
-            case .importFiles(let dir):
-                DocumentPicker(types: [.item], allowsMultiple: true, asCopy: true) { urls in
-                    let copied = workspace.importFiles(urls, into: dir)
-                    if copied.count == 1, let u = copied.first { editor.open(u) }
-                    router.flash("Imported \(copied.count) file\(copied.count == 1 ? "" : "s")")
-                }.ignoresSafeArea()
-            case .openFile:
-                DocumentPicker(types: [.item], allowsMultiple: true, asCopy: false) { urls in
-                    let archives = urls.filter { ArchiveService.isArchive($0) }
-                    if !archives.isEmpty { router.importAndExtract(archives) }
-                    for u in urls where !ArchiveService.isArchive(u) { editor.openExternal(u) }
-                }.ignoresSafeArea()
-            case .linkFolder:
-                DocumentPicker(types: [.folder], allowsMultiple: false, asCopy: false) { urls in
-                    if let u = urls.first { workspace.linkFolder(u); router.flash("Linked \(u.lastPathComponent)") }
-                }.ignoresSafeArea()
-            case .importArchive:
-                DocumentPicker(types: [.zip, UTType("com.rarlab.rar-archive") ?? .data, .archive], allowsMultiple: true, asCopy: true) { urls in
-                    router.importAndExtract(urls)
-                }.ignoresSafeArea()
-            case .installExtensionFile:
-                DocumentPicker(types: [.json, .item], allowsMultiple: false, asCopy: true) { urls in
-                    guard let u = urls.first, let data = try? Data(contentsOf: u) else { return }
-                    do { let m = try extensions.install(data: data); router.flash("Installed \(m.name)") }
-                    catch { router.fail(error) }
-                }.ignoresSafeArea()
+            default:
+                EmptyView()
             }
         }
         .environmentObject(settings)
