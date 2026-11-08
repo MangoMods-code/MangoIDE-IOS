@@ -69,8 +69,8 @@ final class AppSettings: ObservableObject {
     @Published var clearConsoleOnRun: Bool { didSet { put(clearConsoleOnRun, "clearConsoleOnRun") } }
     @Published var saveBeforeRun: Bool { didSet { put(saveBeforeRun, "saveBeforeRun") } }
     @Published var showConsoleOnRun: Bool { didSet { put(showConsoleOnRun, "showConsoleOnRun") } }
-    @Published var runnerURL: String { didSet { put(runnerURL, "runnerURL") } }
-    @Published var runnerKey: String { didSet { put(runnerKey, "runnerKey") } }
+    @Published var runnerURL: String { didSet { put(runnerURL, "runnerURL"); KeychainStore.set(runnerURL, for: "runnerURL") } }
+    @Published var runnerKey: String { didSet { put(runnerKey, "runnerKey"); KeychainStore.set(runnerKey, for: "runnerKey") } }
     @Published var runnerTimeout: Double { didSet { put(runnerTimeout, "runnerTimeout") } }
     @Published var showExecutionTime: Bool { didSet { put(showExecutionTime, "showExecutionTime") } }
     @Published var jsStrictMode: Bool { didSet { put(jsStrictMode, "jsStrictMode") } }
@@ -139,9 +139,12 @@ final class AppSettings: ObservableObject {
         clearConsoleOnRun = AppSettings.v("clearConsoleOnRun", true)
         saveBeforeRun = AppSettings.v("saveBeforeRun", true)
         showConsoleOnRun = AppSettings.v("showConsoleOnRun", true)
-        let savedRunner: String = AppSettings.v("runnerURL", "")
+        // Runner settings live in the Keychain so they survive deleting and reinstalling the app.
+        let savedRunner = KeychainStore.get("runnerURL") ?? AppSettings.v("runnerURL", "")
         runnerURL = savedRunner.isEmpty ? AppSettings.defaultRunnerURL : savedRunner
-        runnerKey = AppSettings.v("runnerKey", "")
+        let savedKey = KeychainStore.get("runnerKey") ?? AppSettings.v("runnerKey", "")
+        runnerKey = savedKey
+        if !savedKey.isEmpty && KeychainStore.get("runnerKey") == nil { KeychainStore.set(savedKey, for: "runnerKey") }
         runnerTimeout = AppSettings.v("runnerTimeout", 20.0)
         showExecutionTime = AppSettings.v("showExecutionTime", true)
         jsStrictMode = AppSettings.v("jsStrictMode", false)

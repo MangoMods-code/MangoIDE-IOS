@@ -264,7 +264,7 @@ struct RunSettings: View {
                 if let result { Text(result).font(.footnote).foregroundStyle(.secondary) }
                 Stepper2(title: "Timeout", value: $s.runnerTimeout, range: 5...120, step: 5, format: { "\(Int($0)) s" })
             } header: { Text("Runner Server") } footer: {
-                Text("JavaScript runs right on your phone and HTML/Markdown open as previews. Every other language (Python, C, Java, Go, Rust, Swift…) is sent to a Piston-compatible runner server, which runs it and sends back the output.")
+                Text("The address and key are saved to this iPhone's Keychain, so they stay even if you delete and reinstall MangoIDE. JavaScript runs right on your phone and HTML/Markdown open as previews. Every other language (Python, C, Java, Go, Rust, Swift…) is sent to a Piston-compatible runner server, which runs it and sends back the output.")
             }
             if !runtimes.isEmpty {
                 Section("Available on this server") {
