@@ -234,10 +234,10 @@ struct TopBar: View {
     }
 
     private var defaultFolder: URL {
-        if let d = editor.activeDocument, workspace.isInside(d.url, workspace.root) || workspace.linkedFolders.contains(where: { workspace.isInside(d.url, $0.url) }) {
+        if let d = editor.activeDocument, workspace.isKnownLocation(d.url) {
             return d.url.deletingLastPathComponent()
         }
-        return workspace.scratchFolder
+        return workspace.activeProject ?? workspace.scratchFolder
     }
 
     private func runActive() {

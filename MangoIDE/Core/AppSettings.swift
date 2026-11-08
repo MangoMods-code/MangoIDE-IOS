@@ -181,7 +181,7 @@ final class AppSettings: ObservableObject {
 
     func resetAll() {
         if let id = Bundle.main.bundleIdentifier {
-            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || $0.key == "runnerURL" || $0.key == "runnerKey" }
+            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || ["runnerURL", "runnerKey", "backgroundKind", "backgroundFile"].contains($0.key) }
             AppSettings.d.removePersistentDomain(forName: id)
             for (k, val) in keep { AppSettings.d.set(val, forKey: k) }
         }

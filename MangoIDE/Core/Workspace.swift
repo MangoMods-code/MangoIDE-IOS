@@ -269,6 +269,13 @@ final class Workspace: ObservableObject {
         return a == b || a.hasPrefix(b.hasSuffix("/") ? b : b + "/")
     }
 
+    /// Inside MangoIDE's own folders, a linked folder or the projects folder.
+    func isKnownLocation(_ url: URL) -> Bool {
+        if isInside(url, root) { return true }
+        if let pr = projectsRoot, isInside(url, pr) { return true }
+        return linkedFolders.contains { isInside(url, $0.url) }
+    }
+
     func isBuiltInFolder(_ url: URL) -> Bool {
         url.deletingLastPathComponent().standardizedFileURL.path == root.standardizedFileURL.path
             && Workspace.builtInFolders.contains(url.lastPathComponent)

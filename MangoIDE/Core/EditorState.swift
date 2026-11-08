@@ -71,7 +71,7 @@ final class EditorState: ObservableObject {
         panes[pane].active = doc.id
         focusedPane = pane
         enforceTabLimit(pane)
-        if !Workspace.shared.isInside(url, Workspace.shared.root) { Workspace.shared.noteRecent(url) }
+        if !Workspace.shared.isKnownLocation(url) { Workspace.shared.noteRecent(url) }
         saveSession()
     }
 
@@ -169,6 +169,7 @@ final class EditorState: ObservableObject {
         let leaving = panes[index].tabs
         let other = index == 0 ? 1 : 0
         for t in leaving where !panes[other].tabs.contains(t) { panes[other].tabs.append(t) }
+        if panes[other].active == nil { panes[other].active = panes[index].active ?? panes[other].tabs.first }
         panes.remove(at: index)
         focusedPane = 0
         textViews = textViews.filter { key, _ in panes.contains { $0.id == key } }

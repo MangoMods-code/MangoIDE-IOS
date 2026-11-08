@@ -76,7 +76,7 @@ struct PreviewItem: Identifiable {
 enum RunService {
     static func run(_ doc: EditorDocument, language: LanguageDef, console: ConsoleModel) {
         let s = AppSettings.shared
-        if s.saveBeforeRun { doc.save(applyCleanup: false) }
+        if s.saveBeforeRun || language.runner == "html" { doc.saveNow() }
         guard let runner = language.runner else {
             console.isVisible = true
             console.append(.err, "Don't know how to run \(language.name) files yet. You can still edit them.")
