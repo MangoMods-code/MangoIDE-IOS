@@ -22,6 +22,7 @@ struct MangoIDEApp: App {
                 .environmentObject(router)
                 .onAppear {
                     router.editor = editor
+                    FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
                     workspace.setUp()
                     extensions.reload()
                     editor.restoreSession()

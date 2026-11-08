@@ -7,13 +7,20 @@ import UniformTypeIdentifiers
 enum FilePicker {
     private final class Delegate: NSObject, UIDocumentPickerDelegate, UIAdaptivePresentationControllerDelegate {
         let onPick: ([URL]) -> Void
-        init(onPick: @escaping ([URL]) -> Void) { self.onPick = onPick }
+        let inPlace: Bool
+        let presentedAt = Date()
+        init(onPick: @escaping ([URL]) -> Void, inPlace: Bool) { self.onPick = onPick; self.inPlace = inPlace }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             finish(controller, urls)
         }
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             finish(controller, [])
+            // An "open in place" pick that comes back as cancelled on a mismatched signing profile is
+            // iOS refusing access, not the user cancelling. Say so instead of silently doing nothing.
+            if inPlace, let why = SigningInfo.explanation, Date().timeIntervalSince(presentedAt) > 1 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { FilePicker.onAccessRefused?(why) }
+            }
         }
         func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
             FilePicker.active = nil
@@ -32,6 +39,8 @@ enum FilePicker {
 
     /// Keeps the delegate alive while the picker is on screen.
     private static var active: Delegate?
+    /// Shown when iOS refuses in-place access (set by the app to show an alert).
+    static var onAccessRefused: ((String) -> Void)?
 
     static func present(types: [UTType], multiple: Bool, asCopy: Bool, attempt: Int = 0, onPick: @escaping ([URL]) -> Void) {
         DispatchQueue.main.async {
@@ -46,7 +55,7 @@ enum FilePicker {
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: asCopy)
             picker.allowsMultipleSelection = multiple
             picker.shouldShowFileExtensions = true
-            let delegate = Delegate(onPick: onPick)
+            let delegate = Delegate(onPick: onPick, inPlace: !asCopy)
             active = delegate
             picker.delegate = delegate
             top.present(picker, animated: true)

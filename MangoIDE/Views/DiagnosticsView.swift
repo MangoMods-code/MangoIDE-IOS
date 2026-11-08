@@ -44,6 +44,7 @@ final class DiagnosticsModel: ObservableObject {
                 note("  entitlement: \(key) = \(String(describing: ent[key]!).replacingOccurrences(of: "\n", with: " ").prefix(120))")
             }
         }
+        if let why = SigningInfo.explanation { note("⚠️ " + why) } else { note("✅ Signing profile matches this app's bundle ID") }
         let home = URL(fileURLWithPath: NSHomeDirectory())
         note("App container: \(home.lastPathComponent)")
         note("Documents writable: \(FileManager.default.isWritableFile(atPath: Workspace.shared.root.path))")
