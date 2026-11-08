@@ -52,6 +52,8 @@ struct PaneView: View {
                     DocumentContent(doc: doc, paneID: pane.id, index: index)
                 } else if editor.isSplit {
                     EmptyPane(index: index)
+                } else if let project = editor.lastProject, FileManager.default.fileExists(atPath: project.path) {
+                    ProjectHomeView(project: project)
                 } else {
                     WelcomeView()
                 }
@@ -309,5 +311,36 @@ struct WelcomeView: View {
         Button(action: run) {
             Label(title, systemImage: symbol).font(.body)
         }
+    }
+}
+
+
+/// Shown when a project's last tab is closed: stay in the project instead of the start screen.
+struct ProjectHomeView: View {
+    let project: URL
+    @EnvironmentObject var editor: EditorState
+    @EnvironmentObject var router: Router
+    @EnvironmentObject var workspace: Workspace
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "shippingbox.fill").font(.system(size: 40)).foregroundStyle(Color.accentColor)
+            Text(project.lastPathComponent).font(.title2.bold()).multilineTextAlignment(.center)
+            Text("Pick a file in the explorer to keep working.").foregroundStyle(.secondary).multilineTextAlignment(.center)
+            HStack(spacing: 12) {
+                Button { router.sidebarOpen = true } label: { Label("Explorer", systemImage: "sidebar.left") }
+                    .buttonStyle(.borderedProminent)
+                Button { router.show(.newFile(project)) } label: { Label("New File", systemImage: "doc.badge.plus") }
+                    .buttonStyle(.bordered)
+            }
+            Button("Leave Project") {
+                editor.lastProject = nil
+                if workspace.activeProject == project { workspace.openProject(nil) }
+            }
+            .font(.footnote)
+            .padding(.top, 4)
+        }
+        .padding(30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -22,6 +22,11 @@ final class EditorState: ObservableObject {
     @Published var closeRequest: CloseRequest?
     /// Cursor position lives in its own object so moving the caret only redraws the status bar.
     let cursor = CursorModel()
+    /// The project you were last working in. When its last tab closes, the editor stays on it
+    /// (and the explorer opens) instead of going back to the start screen.
+    @Published var lastProject: URL?
+    /// Bumped when the explorer should open itself.
+    @Published var explorerRequest = 0
 
     private var textViews: [UUID: WeakTextView] = [:]
     private var didRestore = false
@@ -70,6 +75,7 @@ final class EditorState: ObservableObject {
         }
         panes[pane].active = doc.id
         focusedPane = pane
+        if let project = Workspace.shared.projectFolder(containing: url) { lastProject = project }
         enforceTabLimit(pane)
         if !Workspace.shared.isKnownLocation(url) { Workspace.shared.noteRecent(url) }
         saveSession()
@@ -153,6 +159,7 @@ final class EditorState: ObservableObject {
         }
         if !panes.contains(where: { $0.tabs.contains(id) }) { documents[id] = nil }
         if isSplit && panes[pane].tabs.isEmpty { closePane(pane) }
+        if lastProject != nil && panes.allSatisfy({ $0.tabs.isEmpty }) { explorerRequest += 1 }
         saveSession()
     }
 

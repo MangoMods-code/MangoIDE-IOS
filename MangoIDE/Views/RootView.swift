@@ -45,6 +45,11 @@ struct RootView: View {
         .sheet(item: $router.sheet) { sheet in sheetView(sheet) }
         .sheet(item: $console.preview) { item in PreviewSheet(item: item) }
         .modifier(RootDialogs(theme: theme))
+        .onChange(of: editor.explorerRequest) { _ in
+            guard let project = editor.lastProject else { return }
+            withAnimation(.easeOut(duration: 0.2)) { router.sidebarOpen = true }
+            router.revealRequest = project.appendingPathComponent(".mango-reveal")
+        }
     }
 
     private var mainContent: some View {

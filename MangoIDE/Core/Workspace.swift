@@ -269,6 +269,19 @@ final class Workspace: ObservableObject {
         return a == b || a.hasPrefix(b.hasSuffix("/") ? b : b + "/")
     }
 
+    /// The project a file belongs to: the open project, a folder inside your projects folder or
+    /// MangoIDE › Projects, or a linked folder. nil for loose files (Scratchpad, Imported…).
+    func projectFolder(containing url: URL) -> URL? {
+        if let ap = activeProject, isInside(url, ap) { return ap }
+        let filePath = url.standardizedFileURL.resolvingSymlinksInPath().path
+        for base in [projectsRoot, projectsFolder].compactMap({ $0 }) where isInside(url, base) {
+            let basePath = base.standardizedFileURL.resolvingSymlinksInPath().path
+            let parts = filePath.dropFirst(basePath.count).split(separator: "/")
+            if parts.count >= 2 { return base.appendingPathComponent(String(parts[0]), isDirectory: true) }
+        }
+        return linkedFolders.first { isInside(url, $0.url) }?.url
+    }
+
     /// Inside MangoIDE's own folders, a linked folder or the projects folder.
     func isKnownLocation(_ url: URL) -> Bool {
         if isInside(url, root) { return true }
