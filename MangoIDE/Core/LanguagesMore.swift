@@ -100,6 +100,11 @@ extension LanguageLibrary {
         L("sql-more", "SQL Dialects", ["psql", "pgsql", "mysql", "plsql"], kw: ["select", "from", "where", "insert", "update", "delete", "create", "table", "join", "group", "order", "by", "begin", "end", "function", "returns"],
           line: "--", block: ("/*", "*/"), ci: true),
 
+        // Minecraft
+        L("mcfunction", "Minecraft Function", ["mcfunction"], kw: ["say", "give", "tp", "teleport", "execute", "as", "at", "run", "if", "unless", "summon", "setblock", "fill", "clone", "effect", "scoreboard", "objectives", "players", "add", "remove", "set", "tellraw", "titleraw", "title", "gamemode", "kill", "function", "tag", "particle", "playsound", "clear", "enchant", "weather", "time", "difficulty", "gamerule", "structure", "camera", "dialogue", "event", "entity", "positioned", "rotated", "facing", "anchored", "align", "in", "matches", "block", "blocks", "score"],
+          types: ["@p", "@a", "@e", "@s", "@r", "@initiator"], lit: ["true", "false"], line: "#", quotes: ["\""]),
+        L("mclang", "Minecraft Lang", ["lang"], line: "##", quotes: []),
+
         // Graphics & hardware
         L("glsl", "GLSL / HLSL / Metal", ["glsl", "vert", "frag", "comp", "geom", "hlsl", "fx", "metal", "wgsl", "shader"], kw: ["uniform", "in", "out", "inout", "layout", "void", "return", "if", "else", "for", "while", "struct", "const", "kernel", "fragment", "vertex", "fn", "let", "var"],
           types: ["float", "vec2", "vec3", "vec4", "mat3", "mat4", "int", "bool", "sampler2D", "float2", "float3", "float4", "half", "texture2d", "f32", "vec4f"], line: "//", block: ("/*", "*/"), pre: true),

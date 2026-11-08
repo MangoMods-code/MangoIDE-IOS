@@ -19,7 +19,7 @@ enum ArchiveError: LocalizedError {
 
 /// Extracting .zip/.rar and making .zip files. Work runs off the main thread; results come back on it.
 enum ArchiveService {
-    static let extractable: Set<String> = ["zip", "rar", "cbz", "cbr"]
+    static let extractable: Set<String> = ["zip", "rar", "cbz", "cbr", "mcaddon", "mcpack", "mcworld", "mctemplate"]
 
     static func isArchive(_ url: URL) -> Bool { extractable.contains(url.pathExtension.lowercased()) }
 
@@ -37,8 +37,11 @@ enum ArchiveService {
             do {
                 try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
                 switch archive.pathExtension.lowercased() {
-                case "zip", "cbz":
+                case "zip", "cbz", "mcpack", "mcworld", "mctemplate":
                     try FileManager.default.unzipItem(at: archive, to: dest)
+                case "mcaddon":
+                    try FileManager.default.unzipItem(at: archive, to: dest)
+                    Minecraft.expandNested(in: dest)
                 case "rar", "cbr":
                     try RarExtractor.extract(archive, to: dest, password: password)
                 default:

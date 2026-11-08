@@ -406,6 +406,14 @@ struct SidebarView: View {
             do { _ = try workspace.duplicate(item.url) } catch { router.fail(error) }
         } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
         Button { router.compress([item.url]) } label: { Label("Compress to ZIP", systemImage: "archivebox") }
+        if item.isDirectory {
+            Menu {
+                Button { router.exportMinecraft(item.url, open: true) } label: { Label("Export & Open in Minecraft", systemImage: "play.circle") }
+                Button { router.exportMinecraft(item.url, open: false) } label: { Label("Export .mcpack / .mcaddon", systemImage: "shippingbox") }
+            } label: { Label("Minecraft", systemImage: "cube") }
+        } else if Minecraft.fileTypes.contains(item.url.pathExtension.lowercased()) {
+            Button { Minecraft.share(item.url) } label: { Label("Open in Minecraft", systemImage: "play.circle") }
+        }
         if !builtIn {
             Menu {
                 ForEach(Workspace.builtInFolders, id: \.self) { name in
@@ -482,7 +490,9 @@ enum FileIcons {
         case "md", "markdown": return ("doc.richtext", .gray)
         case "txt": return ("doc.text", .gray)
         case "png", "jpg", "jpeg", "gif", "heic", "webp", "svg": return ("photo", .pink)
-        case "zip", "tar", "gz": return ("doc.zipper", .brown)
+        case "zip", "tar", "gz", "rar": return ("doc.zipper", .brown)
+        case "mcaddon", "mcpack", "mcworld", "mctemplate": return ("cube.fill", .green)
+        case "mcfunction": return ("terminal", .green)
         case "sh", "bash", "zsh": return ("terminal", .green)
         case "c", "h", "cpp", "hpp", "cc", "cs", "java", "kt", "go", "rs", "rb", "php", "lua", "dart":
             return ("chevron.left.forwardslash.chevron.right", .teal)

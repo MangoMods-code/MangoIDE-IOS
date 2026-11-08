@@ -145,6 +145,18 @@ struct NewProjectSheet: View {
                         }
                     }
                 }
+                Section("Templates") {
+                    Button { createMinecraft() } label: {
+                        HStack {
+                            Image(systemName: "cube.fill").foregroundStyle(.green).font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Minecraft Bedrock Add-on").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                Text("Behavior + resource pack with a custom item, texture and function").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
                 Section("Language") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
                         ForEach(languages) { l in
@@ -174,6 +186,19 @@ struct NewProjectSheet: View {
                 }
             }
         }
+    }
+
+    private func createMinecraft() {
+        do {
+            let useMine = inMyFolder && workspace.projectsRoot != nil
+            let parent = useMine ? workspace.projectsRoot! : workspace.projectsFolder
+            let n = name.trimmingCharacters(in: .whitespaces)
+            let file = try Minecraft.createAddon(named: n, in: parent)
+            if useMine { workspace.openProject(parent.appendingPathComponent(n)) }
+            editor.open(file)
+            settings.haptic()
+            dismiss()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func runLabel(_ l: LanguageDef) -> String {

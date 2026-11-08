@@ -209,6 +209,22 @@ final class Router: ObservableObject {
         }
     }
 
+    /// Folder → .mcpack (single pack) or .mcaddon (folder of packs), then optionally straight to Minecraft.
+    func exportMinecraft(_ folder: URL, open: Bool) {
+        busy = "Building add-on…"
+        Minecraft.export(folder) { [weak self] result in
+            guard let self else { return }
+            self.busy = nil
+            switch result {
+            case .success(let file):
+                Workspace.shared.refresh()
+                self.revealRequest = file
+                if open { Minecraft.share(file) } else { self.flash("Saved \(file.lastPathComponent)") }
+            case .failure(let e): self.fail(e)
+            }
+        }
+    }
+
     func compress(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         busy = "Making zip…"

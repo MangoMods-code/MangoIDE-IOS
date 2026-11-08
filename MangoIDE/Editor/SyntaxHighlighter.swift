@@ -46,7 +46,7 @@ final class SyntaxHighlighter {
         r.keywords = words(lang.keywords, caseInsensitive: ci)
         r.types = words(lang.types, caseInsensitive: ci)
         r.literals = words(lang.literals, caseInsensitive: ci)
-        let isCode = !(lang.markup ?? false) && !["markdown", "plaintext", "json", "yaml", "toml", "css", "csv", "diff", "log", "dotenv", "ignore", "properties", "rst", "asciidoc", "org", "latex", "makefile", "dockerfile", "batch", "cobol", "assembly"].contains(lang.id)
+        let isCode = !(lang.markup ?? false) && !["markdown", "plaintext", "json", "yaml", "toml", "css", "csv", "mcfunction", "mclang", "diff", "log", "dotenv", "ignore", "properties", "rst", "asciidoc", "org", "latex", "makefile", "dockerfile", "batch", "cobol", "assembly"].contains(lang.id)
         if isCode {
             r.capitalized = rx("\\b[A-Z][A-Za-z0-9_]*[a-z][A-Za-z0-9_]*\\b")
             r.function = rx("\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()")
@@ -77,7 +77,12 @@ final class SyntaxHighlighter {
             r.diffDel = rx("^-.*$", [.anchorsMatchLines])
             r.diffHunk = rx("^(@@.*@@|diff --git.*|index .*)$", [.anchorsMatchLines])
         }
-        if ["dotenv", "properties", "ignore"].contains(lang.id) {
+        if lang.id == "mcfunction" {
+            r.decorator = rx("@[aeprs](?:\\[[^\\]\\n]*\\])?|@initiator")
+            r.number = rx("[~^]-?\\d*\\.?\\d*|(?<![\\w.])-?\\d+(?:\\.\\d+)?\\b")
+            r.jsonKey = rx("\\b[a-z_0-9]+:[a-z_0-9/.]+\\b")
+        }
+        if ["dotenv", "properties", "ignore", "mclang"].contains(lang.id) {
             r.jsonKey = rx("^[ \\t]*[\\w.\\-]+(?=\\s*[=:])", [.anchorsMatchLines])
         }
         if lang.id == "csv" {
