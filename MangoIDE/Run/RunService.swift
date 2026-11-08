@@ -77,6 +77,10 @@ enum RunService {
     static func run(_ doc: EditorDocument, language: LanguageDef, console: ConsoleModel) {
         let s = AppSettings.shared
         if s.saveBeforeRun || language.runner == "html" { doc.saveNow() }
+        if doc.url.pathExtension.lowercased() == "svg" {
+            console.preview = PreviewItem(title: doc.name, html: nil, fileURL: doc.url)
+            return
+        }
         guard let runner = language.runner else {
             console.isVisible = true
             console.append(.err, "Don't know how to run \(language.name) files yet. You can still edit them.")
@@ -88,6 +92,9 @@ enum RunService {
             return
         case "markdown":
             console.preview = PreviewItem(title: doc.name, html: MarkdownHTML.render(doc.text), fileURL: nil)
+            return
+        case "csv":
+            console.preview = PreviewItem(title: doc.name, html: CSVTable.html(doc.text, tabs: doc.url.pathExtension.lowercased() == "tsv"), fileURL: nil)
             return
         default: break
         }
@@ -361,6 +368,55 @@ enum MarkdownHTML {
         </style></head><body>
         \(html)
         </body></html>
+        """
+    }
+}
+
+
+/// CSV/TSV preview as a scrollable table (first 2,000 rows).
+enum CSVTable {
+    static func parse(_ text: String, tabs: Bool, maxRows: Int = 2000) -> [[String]] {
+        if tabs { return text.split(separator: "\n", omittingEmptySubsequences: false).prefix(maxRows).map { $0.components(separatedBy: "\t") } }
+        var rows: [[String]] = [], row: [String] = [], field = "", inQuotes = false
+        func handle(_ c: Character) {
+            switch c {
+            case "\"": inQuotes = true
+            case ",": row.append(field); field = ""
+            case "\n", "\r\n": row.append(field); field = ""; rows.append(row); row = []
+            case "\r": break
+            default: field.append(c)
+            }
+        }
+        var it = text.makeIterator()
+        while let c = it.next() {
+            if inQuotes {
+                if c == "\"" {
+                    if let n = it.next() {
+                        if n == "\"" { field.append("\"") } else { inQuotes = false; handle(n) }
+                    } else { inQuotes = false }
+                } else { field.append(c) }
+            } else { handle(c) }
+            if rows.count >= maxRows { break }
+        }
+        if !field.isEmpty || !row.isEmpty { row.append(field); rows.append(row) }
+        return rows
+    }
+
+    static func html(_ text: String, tabs: Bool) -> String {
+        let rows = parse(text, tabs: tabs)
+        let esc = MarkdownHTML.escape
+        var body = "<table>"
+        for (i, r) in rows.enumerated() {
+            let tag = i == 0 ? "th" : "td"
+            body += "<tr>" + r.map { "<\(tag)>\(esc($0))</\(tag)>" }.joined() + "</tr>"
+        }
+        body += "</table>"
+        return """
+        <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>:root{color-scheme:light dark} body{font-family:-apple-system,sans-serif;margin:0;padding:12px}
+        table{border-collapse:collapse;font-size:13px} th,td{border:1px solid rgba(127,127,127,.35);padding:4px 8px;white-space:nowrap}
+        th{position:sticky;top:0;background:rgba(255,154,26,.25)} tr:nth-child(even) td{background:rgba(127,127,127,.08)}</style>
+        </head><body><p style="opacity:.6;font-size:12px">\(rows.count) rows\(rows.count >= 2000 ? " (first 2,000 shown)" : "")</p>\(body)</body></html>
         """
     }
 }

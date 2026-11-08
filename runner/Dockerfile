@@ -10,9 +10,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Extra languages (skipped quietly if a package is unavailable).
-RUN apt-get update && for p in nim elixir r-base-core mono-mcs mono-runtime ghc; do \
+RUN apt-get update && for p in nim elixir r-base-core mono-mcs mono-runtime ghc \
+      scala groovy clojure ocaml-nox erlang-nox racket swi-prolog-nox tcl gawk octave gnucobol3 gnucobol gnat gdc nasm \
+      binutils libcurl4 libxml2 libz3-4 libgcc-12-dev libstdc++-12-dev zlib1g-dev libncurses-dev libedit2 libsqlite3-0 xz-utils; do \
       apt-get install -y --no-install-recommends $p || echo "skipped $p"; \
     done && rm -rf /var/lib/apt/lists/*
+
+# Toolchains that aren't in Debian (each one is skipped if its download fails).
+RUN curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar -xJ -C /opt \
+    && ln -s /opt/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig || echo "skipped zig"
+RUN curl -fsSL https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-1.10.5-linux-x86_64.tar.gz | tar -xz -C /opt \
+    && ln -s /opt/julia-1.10.5/bin/julia /usr/local/bin/julia || echo "skipped julia"
+RUN curl -fsSL -o /tmp/dart.zip https://storage.googleapis.com/dart-archive/channels/stable/release/3.5.4/sdk/dartsdk-linux-x64-release.zip \
+    && unzip -q /tmp/dart.zip -d /opt && rm /tmp/dart.zip && chmod -R a+rx /opt/dart-sdk \
+    && ln -s /opt/dart-sdk/bin/dart /usr/local/bin/dart || echo "skipped dart"
+RUN curl -fsSL https://github.com/crystal-lang/crystal/releases/download/1.14.0/crystal-1.14.0-1-linux-x86_64.tar.gz | tar -xz -C /opt \
+    && ln -s /opt/crystal-1.14.0-1/bin/crystal /usr/local/bin/crystal || echo "skipped crystal"
+RUN curl -fsSL https://download.swift.org/swift-6.0.3-release/debian12/swift-6.0.3-RELEASE/swift-6.0.3-RELEASE-debian12.tar.gz | tar -xz -C /opt \
+    && for f in /opt/swift-6.0.3-RELEASE-debian12/usr/bin/*; do ln -sf "$f" /usr/local/bin/; done || echo "skipped swift"
 
 # Kotlin compiler.
 RUN curl -fsSL -o /tmp/kotlin.zip https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip \

@@ -18,6 +18,9 @@ final class SyntaxHighlighter {
         var mdLink: NSRegularExpression?
         var cssProperty: NSRegularExpression?
         var jsonKey: NSRegularExpression?
+        var diffAdd: NSRegularExpression?
+        var diffDel: NSRegularExpression?
+        var diffHunk: NSRegularExpression?
     }
 
     private static var cache: [String: Rules] = [:]
@@ -43,7 +46,7 @@ final class SyntaxHighlighter {
         r.keywords = words(lang.keywords, caseInsensitive: ci)
         r.types = words(lang.types, caseInsensitive: ci)
         r.literals = words(lang.literals, caseInsensitive: ci)
-        let isCode = !(lang.markup ?? false) && !["markdown", "plaintext", "json", "yaml", "toml", "css"].contains(lang.id)
+        let isCode = !(lang.markup ?? false) && !["markdown", "plaintext", "json", "yaml", "toml", "css", "csv", "diff", "log", "dotenv", "ignore", "properties", "rst", "asciidoc", "org", "latex", "makefile", "dockerfile", "batch", "cobol", "assembly"].contains(lang.id)
         if isCode {
             r.capitalized = rx("\\b[A-Z][A-Za-z0-9_]*[a-z][A-Za-z0-9_]*\\b")
             r.function = rx("\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()")
@@ -68,6 +71,17 @@ final class SyntaxHighlighter {
         }
         if lang.id == "json" || lang.id == "yaml" || lang.id == "toml" {
             r.jsonKey = rx(lang.id == "json" ? "\"(?:[^\"\\\\\\n]|\\\\.)*\"(?=\\s*:)" : "^[ \\t-]*[\\w.\"'-]+(?=\\s*[:=])", [.anchorsMatchLines])
+        }
+        if lang.id == "diff" {
+            r.diffAdd = rx("^\\+.*$", [.anchorsMatchLines])
+            r.diffDel = rx("^-.*$", [.anchorsMatchLines])
+            r.diffHunk = rx("^(@@.*@@|diff --git.*|index .*)$", [.anchorsMatchLines])
+        }
+        if ["dotenv", "properties", "ignore"].contains(lang.id) {
+            r.jsonKey = rx("^[ \\t]*[\\w.\\-]+(?=\\s*[=:])", [.anchorsMatchLines])
+        }
+        if lang.id == "csv" {
+            r.jsonKey = rx("[,\\t]")
         }
         cache[lang.id] = r
         return r
@@ -128,6 +142,9 @@ final class SyntaxHighlighter {
         paint(r.mdEmphasis, theme.type)
         paint(r.mdLink, theme.function)
         paint(r.mdHeading, theme.keyword)
+        paint(r.diffAdd, theme.string)
+        paint(r.diffDel, theme.keyword)
+        paint(r.diffHunk, theme.function)
 
         // Strings and comments last so they win over everything inside them.
         let commentColor = UIColor(hex: theme.comment), stringColor = UIColor(hex: theme.string)

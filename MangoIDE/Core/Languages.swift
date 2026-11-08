@@ -30,7 +30,10 @@ struct LanguageDef: Codable, Identifiable, Hashable {
 enum LanguageLibrary {
     private static let cKeywords = ["auto","break","case","char","const","continue","default","do","double","else","enum","extern","float","for","goto","if","inline","int","long","register","restrict","return","short","signed","sizeof","static","struct","switch","typedef","union","unsigned","void","volatile","while","_Bool","bool"]
 
-    static let builtIn: [LanguageDef] = [
+    static var builtIn: [LanguageDef] { all }
+    private static let all: [LanguageDef] = core.filter { $0.id != "plaintext" } + more + [LanguageDef.plain]
+
+    static let core: [LanguageDef] = [
         LanguageDef(id: "swift", name: "Swift", extensions: ["swift"],
                     keywords: ["associatedtype","class","deinit","enum","extension","fileprivate","func","import","init","inout","internal","let","open","operator","private","protocol","public","rethrows","static","struct","subscript","typealias","var","break","case","continue","default","defer","do","else","fallthrough","for","guard","if","in","repeat","return","switch","where","while","as","catch","is","super","self","Self","throw","throws","try","async","await","some","any","mutating","override","final","lazy","weak","unowned","convenience","required","indirect","actor","nonisolated","get","set","willSet","didSet"],
                     types: ["Int","Double","Float","String","Bool","Character","Array","Dictionary","Set","Optional","Void","Any","AnyObject","Error","Result"],

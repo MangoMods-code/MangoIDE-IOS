@@ -80,7 +80,10 @@ final class ExtensionManager: ObservableObject {
         guard let url else { return .plain }
         let ext = url.pathExtension
         let name = url.lastPathComponent.lowercased()
-        if name == "dockerfile" || name == "makefile" { return allLanguages.first { $0.id == "shell" } ?? .plain }
+        if let id = LanguageLibrary.specialFileNames[name] ?? (name.hasPrefix(".env") ? "dotenv" : nil)
+            ?? (name.hasPrefix("dockerfile") ? "dockerfile" : nil) {
+            return language(id: id)
+        }
         if ext.isEmpty { return .plain }
         return allLanguages.first { $0.extensions.contains(ext) }
             ?? allLanguages.first { $0.extensions.contains(ext.lowercased()) }

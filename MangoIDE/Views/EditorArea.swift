@@ -79,7 +79,8 @@ struct DocumentContent: View {
         if let err = doc.loadError {
             message("exclamationmark.triangle", "Couldn't open \(doc.name)", err)
         } else if doc.isBinary {
-            message("doc.zipper", "\(doc.name) isn't a text file", "MangoIDE can only edit text. You can still share, rename or delete it from the sidebar.")
+            FileViewer(url: doc.url, kind: doc.viewer ?? .hex)
+                .id(doc.url)
         } else {
             VStack(spacing: 0) {
                 if let e = doc.saveError {

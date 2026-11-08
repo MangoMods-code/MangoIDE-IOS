@@ -13,6 +13,8 @@ final class EditorDocument: ObservableObject, Identifiable {
     private(set) var text: String = ""
     @Published private(set) var isDirty = false
     @Published private(set) var isBinary = false
+    /// How to show it when it isn't editable text (image, PDF, video, Office doc, hex…).
+    @Published private(set) var viewer: FileViewerKind?
     @Published private(set) var loadError: String?
     @Published private(set) var saveError: String?
     @Published private(set) var lastSaved: Date?
@@ -37,10 +39,20 @@ final class EditorDocument: ObservableObject, Identifiable {
     }
 
     func load() {
+        if let kind = FileViewerKind.forURL(url) {
+            // Known non-text type: don't read it into memory at all.
+            isBinary = true
+            viewer = kind
+            text = ""
+            loadError = FileManager.default.fileExists(atPath: url.path) ? nil : "The file is missing."
+            contentVersion += 1
+            return
+        }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
             if data.prefix(8000).contains(0) {
                 isBinary = true
+                viewer = .hex
                 text = ""
             } else if let s = String(data: data, encoding: .utf8) {
                 text = s
