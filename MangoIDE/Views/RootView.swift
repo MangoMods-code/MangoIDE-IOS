@@ -44,6 +44,17 @@ struct RootView: View {
                         .transition(.move(edge: .leading))
                         .shadow(radius: 12)
                 }
+                if let b = router.busy {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 10) { ProgressView(); Text(b).font(.subheadline.weight(.medium)) }
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(.bottom, 60)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .allowsHitTesting(false)
+                }
                 if let t = router.toast {
                     VStack {
                         Spacer()
@@ -91,6 +102,19 @@ struct RootView: View {
             Button("Don't Save", role: .destructive) { if let r = editor.closeRequest { editor.finishClose(r, save: false) } }
             Button("Cancel", role: .cancel) { editor.closeRequest = nil }
         }
+        .alert("Password for \"\(router.passwordTarget?.lastPathComponent ?? "archive")\"",
+               isPresented: Binding(get: { router.passwordTarget != nil }, set: { if !$0 && router.passwordTarget != nil { router.passwordTarget = nil } })) {
+            SecureField("Password", text: $router.archivePassword)
+            Button("Cancel", role: .cancel) { router.cancelPassword() }
+            Button("Extract") { router.retryExtractWithPassword() }
+        } message: { Text(router.passwordMessage) }
+        .confirmationDialog(router.extractConfirm?.lastPathComponent ?? "",
+                            isPresented: Binding(get: { router.extractConfirm != nil }, set: { if !$0 { router.extractConfirm = nil } }),
+                            titleVisibility: .visible) {
+            Button("Extract Here") { if let u = router.extractConfirm { router.extract(u) } }
+            Button("Extract to Imported") { if let u = router.extractConfirm { router.extract(u, into: workspace.importedFolder) } }
+            Button("Cancel", role: .cancel) {}
+        }
         .onReceive(NotificationCenter.default.publisher(for: .showSnippets)) { _ in router.show(.snippets) }
     }
 
@@ -112,11 +136,17 @@ struct RootView: View {
                 }.ignoresSafeArea()
             case .openFile:
                 DocumentPicker(types: [.item], allowsMultiple: true, asCopy: false) { urls in
-                    for u in urls { editor.openExternal(u) }
+                    let archives = urls.filter { ArchiveService.isArchive($0) }
+                    if !archives.isEmpty { router.importAndExtract(archives) }
+                    for u in urls where !ArchiveService.isArchive(u) { editor.openExternal(u) }
                 }.ignoresSafeArea()
             case .linkFolder:
                 DocumentPicker(types: [.folder], allowsMultiple: false, asCopy: false) { urls in
                     if let u = urls.first { workspace.linkFolder(u); router.flash("Linked \(u.lastPathComponent)") }
+                }.ignoresSafeArea()
+            case .importArchive:
+                DocumentPicker(types: [.zip, UTType("com.rarlab.rar-archive") ?? .data, .archive], allowsMultiple: true, asCopy: true) { urls in
+                    router.importAndExtract(urls)
                 }.ignoresSafeArea()
             case .installExtensionFile:
                 DocumentPicker(types: [.json, .item], allowsMultiple: false, asCopy: true) { urls in
@@ -203,6 +233,7 @@ struct TopBar: View {
                 Button { router.show(.openFile) } label: { Label("Open File…", systemImage: "doc") }
                 Button { router.show(.importFiles(nil)) } label: { Label("Import Files…", systemImage: "square.and.arrow.down") }
                 Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
+                Button { router.show(.importArchive) } label: { Label("Import ZIP / RAR…", systemImage: "doc.zipper") }
             }
             Section {
                 Button { if editor.saveActive() { settings.haptic(); router.flash("Saved") } } label: { Label("Save", systemImage: "square.and.arrow.down.on.square") }

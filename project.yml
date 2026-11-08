@@ -16,12 +16,23 @@ settings:
     CODE_SIGNING_REQUIRED: "NO"
     ENABLE_BITCODE: "NO"
 
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: "0.9.19"
+  Unrar:
+    url: https://github.com/mtgto/Unrar.swift
+    exactVersion: "0.5.4"
+
 targets:
   MangoIDE:
     type: application
     platform: iOS
     sources:
       - path: MangoIDE
+    dependencies:
+      - package: ZIPFoundation
+      - package: Unrar
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mangomods.mangoide
@@ -72,4 +83,6 @@ targets:
               - public.xml
               - public.html
               - net.daringfireball.markdown
+              - public.zip-archive
+              - com.rarlab.rar-archive
               - public.data

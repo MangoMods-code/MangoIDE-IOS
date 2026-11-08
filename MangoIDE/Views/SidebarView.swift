@@ -145,6 +145,9 @@ struct SidebarView: View {
         .onChange(of: settings.foldersFirst) { _ in model.rebuild(workspace) }
         .onChange(of: settings.showHiddenFiles) { _ in model.rebuild(workspace) }
         .onChange(of: model.query) { _ in model.search(workspace) }
+        .onChange(of: router.revealRequest) { u in
+            if let u { model.reveal(u, workspace); router.revealRequest = nil }
+        }
     }
 
     private var header: some View {
@@ -158,6 +161,7 @@ struct SidebarView: View {
                 Button { router.show(.openFile) } label: { Label("Open File…", systemImage: "doc") }
                 Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
                 Button { router.show(.importFiles(nil)) } label: { Label("Import Files…", systemImage: "square.and.arrow.down") }
+                Button { router.show(.importArchive) } label: { Label("Import ZIP / RAR…", systemImage: "doc.zipper") }
                 Divider()
                 Picker("Sort by", selection: $settings.sortMode) {
                     Text("Name").tag("name"); Text("Date").tag("date"); Text("Kind").tag("kind"); Text("Size").tag("size")
@@ -235,7 +239,9 @@ struct SidebarView: View {
         let isOpen = editor.activeDocument?.url.standardizedFileURL == item.url.standardizedFileURL
         let isExpanded = model.expanded.contains(item.url.path)
         Button {
-            if item.isDirectory { model.toggle(item.url, workspace) } else { open(item.url) }
+            if item.isDirectory { model.toggle(item.url, workspace) }
+            else if ArchiveService.isArchive(item.url) { router.extractConfirm = item.url }
+            else { open(item.url) }
         } label: {
             HStack(spacing: 6) {
                 if item.isDirectory {
@@ -278,6 +284,9 @@ struct SidebarView: View {
             Button { router.show(.newFile(item.url)) } label: { Label("New File Here", systemImage: "doc.badge.plus") }
             Button { router.show(.newFolder(item.url)) } label: { Label("New Folder Here", systemImage: "folder.badge.plus") }
             Button { router.show(.importFiles(item.url)) } label: { Label("Import Files Here…", systemImage: "square.and.arrow.down") }
+        } else if ArchiveService.isArchive(item.url) {
+            Button { router.extract(item.url) } label: { Label("Extract Here", systemImage: "arrow.up.bin") }
+            Button { router.extract(item.url, into: workspace.importedFolder) } label: { Label("Extract to Imported", systemImage: "tray.and.arrow.down") }
         } else {
             Button { open(item.url) } label: { Label("Open", systemImage: "doc.text") }
             Button { editor.open(item.url); editor.openToSide(editor.activeDocument?.id); closeIfNarrow() } label: {
@@ -291,6 +300,7 @@ struct SidebarView: View {
         Button {
             do { _ = try workspace.duplicate(item.url) } catch { router.fail(error) }
         } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+        Button { router.compress([item.url]) } label: { Label("Compress to ZIP", systemImage: "archivebox") }
         if !builtIn {
             Menu {
                 ForEach(Workspace.builtInFolders, id: \.self) { name in

@@ -258,6 +258,7 @@ struct WelcomeView: View {
                     action("doc", "Open File…") { router.show(.openFile) }
                     action("folder", "Open Folder…") { router.show(.linkFolder) }
                     action("square.and.arrow.down", "Import Files…") { router.show(.importFiles(nil)) }
+                    action("doc.zipper", "Import ZIP / RAR…") { router.show(.importArchive) }
                 }
                 if !projects.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
