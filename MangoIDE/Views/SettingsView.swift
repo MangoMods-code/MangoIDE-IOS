@@ -23,6 +23,7 @@ struct SettingsView: View {
                     LabeledContent("Build", value: Bundle.main.appBuild)
                     LabeledContent("Languages", value: "\(extensions.allLanguages.count)")
                     LabeledContent("Themes", value: "\(extensions.allThemes.count)")
+                    NavigationLink { DiagnosticsView() } label: { Label("File Access Diagnostics", systemImage: "stethoscope") }
                 }
                 Section {
                     Button("Reset All Settings", role: .destructive) { confirmReset = true }
