@@ -81,6 +81,8 @@ final class AppSettings: ObservableObject {
     @Published var showWelcome: Bool { didSet { put(showWelcome, "showWelcome") } }
     @Published var extensionsEnabled: Bool { didSet { put(extensionsEnabled, "extensionsEnabled") } }
 
+    /// Your own runner on Railway. The address isn't secret; the key is what protects it.
+    static let defaultRunnerURL = "https://runner-production-4eb3.up.railway.app"
     static let defaultAccessoryKeys = "{ } [ ] ( ) < > ; : = + - * / \\ | & ! ? \" ' ` # $ % _ . ,"
 
     init() {
@@ -137,7 +139,8 @@ final class AppSettings: ObservableObject {
         clearConsoleOnRun = AppSettings.v("clearConsoleOnRun", true)
         saveBeforeRun = AppSettings.v("saveBeforeRun", true)
         showConsoleOnRun = AppSettings.v("showConsoleOnRun", true)
-        runnerURL = AppSettings.v("runnerURL", "")
+        let savedRunner: String = AppSettings.v("runnerURL", "")
+        runnerURL = savedRunner.isEmpty ? AppSettings.defaultRunnerURL : savedRunner
         runnerKey = AppSettings.v("runnerKey", "")
         runnerTimeout = AppSettings.v("runnerTimeout", 20.0)
         showExecutionTime = AppSettings.v("showExecutionTime", true)
