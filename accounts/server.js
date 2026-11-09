@@ -380,6 +380,7 @@ async function ai(req, res, u) {
 // ---------- GitHub (repos, clone, pull, push) ----------
 
 const githubRoutes = require("./github")({ decrypt, send, readBody, isPro });
+const cloudRoutes = require("./cloud")({ db, send, readBody, isPro });
 
 // ---------- Routes ----------
 
@@ -418,10 +419,11 @@ async function route(req, res) {
   if (req.method === "POST" && p === "/billing/portal") return portal(req, res, u);
   if (req.method === "POST" && p === "/ai/messages") return ai(req, res, u);
   if (p.startsWith("/github/") && await githubRoutes(req, res, u, url, p)) return;
+  if (p.startsWith("/cloud/") && await cloudRoutes(req, res, u, url, p)) return;
   send(res, 404, { message: "Not found" });
 }
 
-migrate().then(() => {
+migrate().then(() => cloudRoutes.migrate()).then(() => {
   http.createServer((req, res) => {
     route(req, res).catch((e) => {
       console.error(e);

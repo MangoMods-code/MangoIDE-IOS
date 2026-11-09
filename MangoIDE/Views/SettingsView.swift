@@ -11,6 +11,7 @@ struct SettingsView: View {
             List {
                 Section {
                     NavigationLink { AccountView() } label: { AccountRow() }
+                    NavigationLink { CloudView() } label: { row("Cloud Sync & Backup", "icloud", .cyan) }
                 }
                 Section {
                     NavigationLink { EditorSettings() } label: { row("Editor", "character.cursor.ibeam", .blue) }

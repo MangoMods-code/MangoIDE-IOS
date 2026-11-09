@@ -25,6 +25,8 @@ struct MangoIDEApp: App {
                 .onAppear {
                     router.editor = editor
                     agent.editor = editor
+                    CloudSync.shared.editor = editor
+                    CloudSync.shared.startTimer()
                     AccountManager.shared.refresh()
                     FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
                     workspace.setUp()
@@ -46,8 +48,9 @@ struct MangoIDEApp: App {
                 }
         }
         .onChange(of: scenePhase) { phase in
-            if phase != .active { editor.saveAllNow(); editor.saveSession() }
-            else { AccountManager.shared.refresh(); WelcomePrompt.showIfDue(router) }
+            if phase == .background { editor.saveAllNow(); editor.saveSession(); CloudSync.shared.syncNow() }
+            else if phase != .active { editor.saveAllNow(); editor.saveSession() }
+            else { AccountManager.shared.refresh(); WelcomePrompt.showIfDue(router); CloudSync.shared.syncNow() }
         }
     }
 }
