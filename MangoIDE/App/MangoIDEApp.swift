@@ -34,6 +34,7 @@ struct MangoIDEApp: App {
                     if editor.panes.allSatisfy({ $0.tabs.isEmpty }) && editor.lastProject == nil && settings.showWelcome {
                         editor.open(workspace.scratchFolder.appendingPathComponent("Welcome.md"))
                     }
+                    WelcomePrompt.showIfDue(router)
                 }
                 .onOpenURL { url in
                     if url.scheme == "mangoide" {
@@ -46,7 +47,7 @@ struct MangoIDEApp: App {
         }
         .onChange(of: scenePhase) { phase in
             if phase != .active { editor.saveAllNow(); editor.saveSession() }
-            else { AccountManager.shared.refresh() }
+            else { AccountManager.shared.refresh(); WelcomePrompt.showIfDue(router) }
         }
     }
 }
@@ -54,7 +55,7 @@ struct MangoIDEApp: App {
 enum AppSheet: Identifiable {
     case newFile(URL), newFolder(URL), newProject, settings, extensions, snippets
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
-    case projects, pickProjectsFolder, agent
+    case projects, pickProjectsFolder, agent, welcome
 
     var id: String {
         switch self {
@@ -72,6 +73,7 @@ enum AppSheet: Identifiable {
         case .projects: return "projects"
         case .pickProjectsFolder: return "pickProjectsFolder"
         case .agent: return "agent"
+        case .welcome: return "welcome"
         }
     }
 }

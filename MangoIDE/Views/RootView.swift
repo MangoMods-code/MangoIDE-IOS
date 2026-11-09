@@ -127,6 +127,7 @@ struct RootView: View {
             case .extensions: NavigationStack { ExtensionsView() }
             case .snippets: SnippetsSheet()
             case .projects: ProjectsSheet()
+            case .welcome: WelcomeSignInView()
             case .agent:
                 if #available(iOS 16.4, *) {
                     AgentView()
