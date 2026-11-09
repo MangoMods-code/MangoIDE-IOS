@@ -311,7 +311,7 @@ struct SidebarView: View {
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(Color.accentColor.opacity(0.14), in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle(scale: 0.94))
                 }
             }
             .padding(.vertical, 2)
@@ -353,6 +353,7 @@ struct SidebarView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .bold))
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .animation(Anim.quick, value: isExpanded)
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
                 } else {
@@ -377,7 +378,11 @@ struct SidebarView: View {
         .buttonStyle(.plain)
         .font(.system(size: 15))
         .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 8))
-        .listRowBackground(isOpen ? Color.accentColor.opacity(0.16) : Color.clear)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.accentColor.opacity(isOpen ? 0.18 : 0))
+                .padding(.horizontal, 6)
+        )
         .listRowSeparator(.hidden)
         .contextMenu { contextMenu(for: item) }
     }

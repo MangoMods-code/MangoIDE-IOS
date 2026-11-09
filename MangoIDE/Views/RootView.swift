@@ -52,7 +52,7 @@ struct RootView: View {
         } message: { Text(live.message ?? "") }
         .onChange(of: editor.explorerRequest) { _ in
             guard let project = editor.lastProject else { return }
-            withAnimation(.easeOut(duration: 0.2)) { router.sidebarOpen = true }
+            withAnimation(Anim.snappy) { router.sidebarOpen = true }
             router.revealRequest = project.appendingPathComponent(".mango-reveal")
         }
     }
@@ -83,40 +83,42 @@ struct RootView: View {
                 if !wide && router.sidebarOpen {
                     Color.black.opacity(0.35)
                         .ignoresSafeArea()
-                        .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { router.sidebarOpen = false } }
+                        .transition(.opacity)
+                        .onTapGesture { withAnimation(Anim.snappy) { router.sidebarOpen = false } }
                     SidebarView()
                         .frame(width: min(330, geo.size.width * 0.86))
                         .background(settings.themeControlsApp ? theme.chromeColor : Color(uiColor: .systemBackground))
                         .transition(.move(edge: .leading))
-                        .shadow(radius: 12)
+                        .shadow(color: .black.opacity(0.25), radius: 18, x: 6)
                 }
                 if let b = router.busy {
                     VStack {
                         Spacer()
                         HStack(spacing: 10) { ProgressView(); Text(b).font(.subheadline.weight(.medium)) }
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .floatingPill()
                             .padding(.bottom, 60)
                     }
                     .frame(maxWidth: .infinity)
                     .allowsHitTesting(false)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 if let t = router.toast {
                     VStack {
                         Spacer()
                         Text(t)
                             .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .floatingPill()
                             .padding(.bottom, 60)
                     }
                     .frame(maxWidth: .infinity)
                     .allowsHitTesting(false)
-                    .transition(.opacity)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: router.sidebarOpen)
-            .animation(.easeOut(duration: 0.2), value: console.isVisible)
+            .animation(Anim.snappy, value: router.sidebarOpen)
+            .animation(Anim.snappy, value: console.isVisible)
+            .animation(Anim.snappy, value: router.toast)
+            .animation(Anim.snappy, value: router.busy)
         }
     }
 
@@ -200,7 +202,7 @@ struct TopBar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            barButton("sidebar.left") { withAnimation { router.sidebarOpen.toggle() } }
+            barButton("sidebar.left") { withAnimation(Anim.snappy) { router.sidebarOpen.toggle() } }
             if let doc = editor.activeDocument {
                 ActiveTitle(doc: doc)
             } else {
@@ -315,6 +317,7 @@ struct TopBar: View {
                 .frame(width: 38, height: 38)
                 .contentShape(Rectangle())
         }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -323,8 +326,9 @@ struct ActiveTitle: View {
     var body: some View {
         HStack(spacing: 5) {
             Text(doc.name).font(.headline).lineLimit(1).truncationMode(.middle)
-            if doc.isDirty { Circle().fill(Color.accentColor).frame(width: 7, height: 7) }
+            if doc.isDirty { Circle().fill(Color.accentColor).frame(width: 7, height: 7).transition(.scale.combined(with: .opacity)) }
         }
+        .animation(Anim.quick, value: doc.isDirty)
     }
 }
 

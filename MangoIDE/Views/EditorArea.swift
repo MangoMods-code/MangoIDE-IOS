@@ -60,9 +60,10 @@ struct PaneView: View {
             }
             .overlay(alignment: .top) {
                 if editor.isSplit && editor.focusedPane == index {
-                    Rectangle().fill(Color.accentColor).frame(height: 2)
+                    Rectangle().fill(Color.accentColor).frame(height: 2).transition(.opacity)
                 }
             }
+            .animation(Anim.quick, value: editor.focusedPane)
         } else {
             Color.clear
         }
@@ -135,6 +136,7 @@ struct EmptyPane: View {
 
 struct TabBar: View {
     let index: Int
+    @Namespace private var pill
     @EnvironmentObject var editor: EditorState
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var router: Router
@@ -151,17 +153,20 @@ struct TabBar: View {
                     ForEach(pane.tabs, id: \.self) { id in
                         if let doc = editor.doc(id) {
                             TabItem(doc: doc, active: id == pane.active, focused: editor.focusedPane == index,
-                                    compact: settings.compactTabs, showClose: settings.showTabCloseButtons,
-                                    onSelect: { editor.activate(id, pane: index) },
+                                    compact: settings.compactTabs, showClose: settings.showTabCloseButtons, pill: pill,
+                                    onSelect: { withAnimation(Anim.snappy) { editor.activate(id, pane: index) } },
                                     onClose: { editor.requestClose(id, pane: index) })
                                 .id(id)
+                                .transition(.scale(scale: 0.85).combined(with: .opacity))
                                 .contextMenu { menu(id, doc) }
                         }
                     }
                 }
+                .padding(.horizontal, 4)
+                .animation(Anim.snappy, value: pane.tabs)
             }
             .onChange(of: pane.active) { a in
-                if let a { withAnimation { proxy.scrollTo(a, anchor: .center) } }
+                if let a { withAnimation(Anim.snappy) { proxy.scrollTo(a, anchor: .center) } }
             }
         }
         .frame(height: settings.compactTabs ? 32 : 38)
@@ -197,6 +202,7 @@ struct TabItem: View {
     let focused: Bool
     let compact: Bool
     let showClose: Bool
+    let pill: Namespace.ID
     let onSelect: () -> Void
     let onClose: () -> Void
 
@@ -220,18 +226,25 @@ struct TabItem: View {
                             .frame(width: 18, height: 18)
                             .background(Color.primary.opacity(active ? 0.08 : 0), in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle(scale: 0.8))
                 }
             }
             .frame(width: 18)
         }
         .padding(.leading, 12).padding(.trailing, 6)
         .frame(maxHeight: .infinity)
-        .background(active ? Color(uiColor: .systemBackground).opacity(focused ? 1 : 0.6) : Color.clear)
-        .overlay(alignment: .top) {
-            if active { Rectangle().fill(Color.accentColor).frame(height: 2) }
+        .background {
+            if active {
+                // The highlight slides from tab to tab.
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(focused ? 0.1 : 0.06))
+                    .overlay(alignment: .bottom) {
+                        Capsule().fill(Color.accentColor.opacity(focused ? 1 : 0.5)).frame(height: 2).padding(.horizontal, 12)
+                    }
+                    .padding(.horizontal, 2).padding(.vertical, 4)
+                    .matchedGeometryEffect(id: "active", in: pill)
+            }
         }
-        .overlay(alignment: .trailing) { Rectangle().fill(Color(uiColor: .separator)).frame(width: 0.5) }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
     }
@@ -256,47 +269,79 @@ struct WelcomeView: View {
         }
     }
 
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 10)]
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("MangoIDE").font(.largeTitle.bold())
-                    Text("Version \(Bundle.main.appVersion) (\(Bundle.main.appBuild))").font(.footnote).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Start").font(.headline)
-                    action("doc.badge.plus", "New File") { router.show(.newFile(workspace.scratchFolder)) }
-                    action("shippingbox", "New Project") { router.show(.newProject) }
-                    action("doc", "Open File…") { router.show(.openFile) }
-                    action("folder", "Open Folder…") { router.show(.linkFolder) }
-                    action("square.and.arrow.down", "Import Files…") { router.show(.importFiles(nil)) }
-                    action("doc.zipper", "Import ZIP / RAR…") { router.show(.importArchive) }
-                    action("arrow.triangle.branch", "Clone from GitHub…") { router.show(.github) }
-                    action("person.2", "Join a Live Session…") { router.show(.collab) }
-                    action("square.grid.2x2", workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…") {
-                        router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects)
+            VStack(alignment: .leading, spacing: 26) {
+                HStack(spacing: 16) {
+                    GlowTile(symbol: "chevron.left.forwardslash.chevron.right")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("MangoIDE").font(.largeTitle.bold())
+                        Text("Version \(Bundle.main.appVersion) (\(Bundle.main.appBuild))").font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                if !projects.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Projects").font(.headline)
-                        ForEach(projects.prefix(8)) { p in
-                            action("shippingbox.fill", p.name) { openProject(p.url) }
+                .appearRise(0)
+
+                group("Start", 1) {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ActionTile(symbol: "doc.badge.plus", title: "New File", color: .blue) { router.show(.newFile(workspace.scratchFolder)) }
+                        ActionTile(symbol: "shippingbox.fill", title: "New Project", color: .orange) { router.show(.newProject) }
+                        ActionTile(symbol: "doc.fill", title: "Open File…", color: .teal) { router.show(.openFile) }
+                        ActionTile(symbol: "folder.fill", title: "Open Folder…", color: .indigo) { router.show(.linkFolder) }
+                        ActionTile(symbol: "arrow.triangle.branch", title: "Clone from GitHub…", color: .black) { router.show(.github) }
+                        ActionTile(symbol: "person.2.fill", title: "Join a Live Session…", color: .mint) { router.show(.collab) }
+                        ActionTile(symbol: "square.and.arrow.down.fill", title: "Import Files…", color: .green) { router.show(.importFiles(nil)) }
+                        ActionTile(symbol: "doc.zipper", title: "Import ZIP / RAR…", color: .brown) { router.show(.importArchive) }
+                        ActionTile(symbol: "square.grid.2x2.fill", title: workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…", color: .purple) {
+                            router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects)
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Customize").font(.headline)
-                    action("gearshape", "Settings") { router.show(.settings) }
-                    action("puzzlepiece.extension", "Extensions") { router.show(.extensions) }
+
+                if !projects.isEmpty {
+                    group("Projects", 2) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(projects.prefix(8).enumerated()), id: \.element.id) { i, p in
+                                Button { openProject(p.url) } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "shippingbox.fill").foregroundStyle(.tint)
+                                        Text(p.name).foregroundStyle(.primary).lineLimit(1)
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.horizontal, 14).padding(.vertical, 12)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(PressableStyle(scale: 0.98))
+                                if i < min(projects.count, 8) - 1 { Divider().padding(.leading, 44) }
+                            }
+                        }
+                        .surfaceCard()
+                    }
+                }
+
+                group("Customize", 3) {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ActionTile(symbol: "gearshape.fill", title: "Settings", color: .gray) { router.show(.settings) }
+                        ActionTile(symbol: "puzzlepiece.extension.fill", title: "Extensions", color: .pink) { router.show(.extensions) }
+                    }
                 }
             }
-            .padding(28)
-            .frame(maxWidth: 520, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: 620, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .onAppear(perform: loadProjects)
         .onChange(of: workspace.revision) { _ in loadProjects() }
+    }
+
+    private func group<Content: View>(_ title: String, _ index: Int, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(0.6)
+            content()
+        }
+        .appearRise(index)
     }
 
     private func openProject(_ dir: URL) {
@@ -307,12 +352,6 @@ struct WelcomeView: View {
         let main = files.first { $0.name.hasPrefix("main.") } ?? files.first { $0.name != "README.md" } ?? files.first
         if let main { editor.open(main.url) }
         router.sidebarOpen = true
-    }
-
-    private func action(_ symbol: String, _ title: String, _ run: @escaping () -> Void) -> some View {
-        Button(action: run) {
-            Label(title, systemImage: symbol).font(.body)
-        }
     }
 }
 
@@ -326,7 +365,8 @@ struct ProjectHomeView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "shippingbox.fill").font(.system(size: 40)).foregroundStyle(Color.accentColor)
+            GlowTile(symbol: "shippingbox.fill", size: 72, colors: [Color.accentColor, Color.accentColor.opacity(0.7)])
+                .padding(.bottom, 6)
             Text(project.lastPathComponent).font(.title2.bold()).multilineTextAlignment(.center)
             Text("Pick a file in the explorer to keep working.").foregroundStyle(.secondary).multilineTextAlignment(.center)
             HStack(spacing: 12) {

@@ -135,16 +135,31 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     private func scheduleIndex() {
         guard config?.autocomplete == true else { return }
         indexWork?.cancel()
-        let text = textView.textStorage.string
+        // The text is only copied once typing pauses, not on every key.
         let work = DispatchWorkItem { [weak self] in
-            let words = Completion.index(text)
-            DispatchQueue.main.async { self?.wordIndex = words }
+            guard let self else { return }
+            let text = String(self.textView.textStorage.string)
+            EditorContainerView.indexQueue.async {
+                let words = Completion.index(text)
+                DispatchQueue.main.async { [weak self] in self?.wordIndex = words }
+            }
         }
         indexWork = work
-        EditorContainerView.indexQueue.asyncAfter(deadline: .now() + 0.6, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
     }
 
+    private var completionWork: DispatchWorkItem?
+
+    /// Several cursor moves in a row (fast typing) only look up suggestions once.
     private func updateCompletions() {
+        guard accessory != nil, config?.autocomplete == true || !completionItems.isEmpty else { return }
+        completionWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.refreshCompletions() }
+        completionWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: work)
+    }
+
+    private func refreshCompletions() {
         guard let accessory else { return }
         let sel = textView.selectedRange
         guard config?.autocomplete == true, textView.isFirstResponder, sel.length == 0, textView.markedTextRange == nil,

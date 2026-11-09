@@ -335,3 +335,130 @@ final class EffectView: UIView {
         }
     }
 }
+
+
+// MARK: - Motion, press feedback and surfaces shared by every screen
+
+enum Anim {
+    /// Quick spring for things that follow a tap (tabs, sidebar, toasts).
+    static let snappy = Animation.spring(response: 0.3, dampingFraction: 0.86)
+    /// Slower spring for panels sliding in.
+    static let gentle = Animation.spring(response: 0.4, dampingFraction: 0.9)
+    static let quick = Animation.easeOut(duration: 0.15)
+}
+
+/// Buttons shrink and dim slightly while pressed.
+struct PressableStyle: ButtonStyle {
+    var scale: CGFloat = 0.9
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.65 : 1)
+            .animation(Anim.snappy, value: configuration.isPressed)
+    }
+}
+
+private struct SurfaceCard: ViewModifier {
+    var radius: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
+    }
+}
+
+private struct FloatingPill: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+            .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+    }
+}
+
+/// Fades and lifts content into place when it first appears; later items follow a beat behind.
+struct AppearRise: ViewModifier {
+    let index: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 12)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(Anim.gentle.delay(reduceMotion ? 0 : Double(index) * 0.05)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    /// Soft tinted panel that works on every theme and background.
+    func surfaceCard(radius: CGFloat = 14) -> some View { modifier(SurfaceCard(radius: radius)) }
+    /// Floating capsule for toasts and progress.
+    func floatingPill() -> some View { modifier(FloatingPill()) }
+    func appearRise(_ index: Int = 0) -> some View { modifier(AppearRise(index: index)) }
+}
+
+/// Rounded icon tile with a slow, soft glow behind it.
+struct GlowTile: View {
+    let symbol: String
+    var size: CGFloat = 64
+    var colors: [Color] = [.orange, .yellow]
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(colors.first ?? .orange)
+                .frame(width: size, height: size)
+                .blur(radius: size * 0.38)
+                .opacity(pulse ? 0.55 : 0.28)
+                .scaleEffect(pulse ? 1.12 : 0.92)
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.42, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
+                .shadow(color: (colors.first ?? .orange).opacity(0.35), radius: 10, y: 5)
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+}
+
+/// Icon in a tinted rounded square with a title: the tiles on the start screen.
+struct ActionTile: View {
+    let symbol: String
+    let title: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(color.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .surfaceCard()
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(PressableStyle(scale: 0.96))
+    }
+}
