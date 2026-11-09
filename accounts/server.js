@@ -22,6 +22,8 @@ const PRO_PRICE_CENTS = Number(process.env.PRO_PRICE_CENTS || 499);
 const AI_MARKUP = Number(process.env.AI_MARKUP || 1.5);
 const TOPUPS = (process.env.TOPUP_OPTIONS || "500,1000,2000").split(",").map(Number).filter((n) => n >= 100);
 const SESSION_DAYS = 90;
+// GitHub account IDs (numbers, not usernames, so a renamed account can't take it) that get Pro for free.
+const PRO_GITHUB_IDS = new Set((process.env.PRO_GITHUB_IDS || "").split(",").map((s) => s.trim()).filter(Boolean));
 
 const stripe = STRIPE_SECRET_KEY ? require("stripe")(STRIPE_SECRET_KEY) : null;
 const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 10, ssl: process.env.DATABASE_URL?.includes("railway.internal") ? false : { rejectUnauthorized: false } });
@@ -152,13 +154,14 @@ async function authUser(req) {
 }
 
 function isPro(u) {
+  if (PRO_GITHUB_IDS.has(String(u.github_id))) return true;
   return ["active", "trialing"].includes(u.pro_status) || (u.pro_until && new Date(u.pro_until) > new Date());
 }
 
 function publicUser(u) {
   return {
     login: u.login, name: u.name, avatarURL: u.avatar_url,
-    pro: !!isPro(u), proStatus: u.pro_status, proUntil: u.pro_until,
+    pro: !!isPro(u), proStatus: PRO_GITHUB_IDS.has(String(u.github_id)) ? "owner pass" : u.pro_status, proUntil: u.pro_until,
     credits: Number(u.credits_micro) / 1e6,
     topups: TOPUPS.map((c) => c / 100), proPrice: PRO_PRICE_CENTS / 100,
     payments: !!stripe, aiCredits: !!ANTHROPIC_KEY,

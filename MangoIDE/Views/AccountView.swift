@@ -54,7 +54,9 @@ struct AccountView: View {
                 Section {
                     if p.pro {
                         LabeledContent("Status", value: p.proStatus.capitalized)
-                        Button("Manage Subscription") { account.manageBilling() }
+                        if p.proStatus != "owner pass" {
+                            Button("Manage Subscription") { account.manageBilling() }
+                        }
                     } else {
                         Button { account.buyPro() } label: {
                             Label(String(format: "Get Pro · $%.2f/month", p.proPrice), systemImage: "star.fill")
