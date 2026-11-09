@@ -34,14 +34,19 @@ RUN curl -fsSL -o /tmp/kotlin.zip https://github.com/JetBrains/kotlin/releases/d
     && unzip -q /tmp/kotlin.zip -d /opt && rm /tmp/kotlin.zip \
     && ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc || echo "skipped kotlin"
 
-# TypeScript runner.
-RUN npm install -g tsx@4 && npm cache clean --force
+# TypeScript runner and the Prettier formatter.
+RUN npm install -g tsx@4 prettier@3 && npm cache clean --force
+
+# Formatters and checkers for Format Document and error underlines (each skipped if unavailable).
+RUN apt-get update && for p in clang-format rustfmt black shfmt; do \
+      apt-get install -y --no-install-recommends $p || echo "skipped $p"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # Unprivileged user that user code runs as.
 RUN useradd --create-home --shell /bin/bash runner
 
 WORKDIR /app
-COPY server.js /app/server.js
+COPY *.js /app/
 ENV NODE_ENV=production
 EXPOSE 8080
 CMD ["node", "/app/server.js"]

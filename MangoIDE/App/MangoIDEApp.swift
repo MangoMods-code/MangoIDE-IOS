@@ -27,6 +27,7 @@ struct MangoIDEApp: App {
                     agent.editor = editor
                     CloudSync.shared.editor = editor
                     LiveSession.shared.editor = editor
+                    EditorState.current = editor
                     CloudSync.shared.startTimer()
                     AccountManager.shared.refresh()
                     FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
@@ -67,6 +68,7 @@ enum AppSheet: Identifiable {
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
     case projects, pickProjectsFolder, agent, welcome, github, collab
     case openShare(String), joinLive(String)
+    case problems, findInFiles, outline, definitions(String, [CodeSymbol]), runConfig
 
     var id: String {
         switch self {
@@ -89,6 +91,11 @@ enum AppSheet: Identifiable {
         case .collab: return "collab"
         case .openShare(let c): return "openShare" + c
         case .joinLive(let c): return "joinLive" + c
+        case .problems: return "problems"
+        case .findInFiles: return "findInFiles"
+        case .outline: return "outline"
+        case .definitions(let n, _): return "definitions" + n
+        case .runConfig: return "runConfig"
         }
     }
 }

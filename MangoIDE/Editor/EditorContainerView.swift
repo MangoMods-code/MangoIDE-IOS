@@ -16,6 +16,16 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     var onSelection: ((NSRange) -> Void)?
     private var peers: [PeerCaret] = []
     private var peerViews: [UIView] = []
+    // Autocomplete
+    private var wordIndex: [String: Int] = [:]
+    private var indexWork: DispatchWorkItem?
+    private var completionRange: NSRange?
+    private var completionItems: [Completion.Item] = []
+    private static let indexQueue = DispatchQueue(label: "mango.wordindex", qos: .utility)
+    // Problems
+    private(set) var diagnostics: [Diagnostic] = []
+    /// line (1-based) → worst problem on it, for the gutter.
+    private(set) var problemLines: [Int: Diagnostic.Severity] = [:]
     var snippetProvider: (() -> [Snippet])?
 
     private var highlightWork: DispatchWorkItem?
@@ -64,6 +74,93 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         }
         gutter.setNeedsDisplay()
         if !peers.isEmpty { layoutPeers() }
+    }
+
+    // MARK: Problems
+
+    func showDiagnostics(_ list: [Diagnostic]) {
+        diagnostics = list
+        var lines: [Int: Diagnostic.Severity] = [:]
+        for d in list where lines[d.line] != .error { lines[d.line] = d.severity }
+        problemLines = lines
+        applyDiagnosticMarks()
+        gutter.setNeedsDisplay()
+    }
+
+    /// Dotted underlines under the problem spots (display-only, the text itself isn't changed).
+    private func applyDiagnosticMarks() {
+        let lm = textView.layoutManager
+        let length = textView.textStorage.length
+        let full = NSRange(location: 0, length: length)
+        lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: full)
+        lm.removeTemporaryAttribute(.underlineColor, forCharacterRange: full)
+        guard length > 0 else { return }
+        let ns = textView.textStorage.string as NSString
+        for d in diagnostics.prefix(300) {
+            let li = d.line - 1
+            guard li >= 0, li < lineStarts.count else { continue }
+            let start = lineStarts[li]
+            var end = li + 1 < lineStarts.count ? lineStarts[li + 1] - 1 : length
+            end = max(start, min(end, length))
+            var from = min(start + max(0, d.col - 1), end)
+            // Underline the word at the column, or the whole line when the column is at its end.
+            var to = from
+            while to < end && Completion.isWordChar(ns.character(at: to)) { to += 1 }
+            if to == from {
+                from = start
+                while from < end && (ns.character(at: from) == 32 || ns.character(at: from) == 9) { from += 1 }
+                to = end
+            }
+            guard to > from else { continue }
+            let color: UIColor = d.severity == .error ? .systemRed : d.severity == .warning ? .systemOrange : .systemBlue
+            lm.addTemporaryAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue | NSUnderlineStyle.patternDot.rawValue,
+                                       .underlineColor: color], forCharacterRange: NSRange(location: from, length: to - from))
+        }
+    }
+
+    // MARK: Autocomplete
+
+    private func scheduleIndex() {
+        guard config?.autocomplete == true else { return }
+        indexWork?.cancel()
+        let text = textView.textStorage.string
+        let work = DispatchWorkItem { [weak self] in
+            let words = Completion.index(text)
+            DispatchQueue.main.async { self?.wordIndex = words }
+        }
+        indexWork = work
+        EditorContainerView.indexQueue.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
+    private func updateCompletions() {
+        guard let accessory else { return }
+        let sel = textView.selectedRange
+        guard config?.autocomplete == true, textView.isFirstResponder, sel.length == 0, textView.markedTextRange == nil,
+              let range = Completion.prefix(in: textView.textStorage.string as NSString, at: sel.location) else {
+            completionRange = nil; completionItems = []
+            accessory.setSuggestions([])
+            return
+        }
+        let prefix = (textView.textStorage.string as NSString).substring(with: range)
+        let items = Completion.suggestions(prefix: prefix, words: wordIndex, language: language,
+                                           snippets: ExtensionManager.shared.snippets(for: language))
+        completionRange = range
+        completionItems = items
+        accessory.setSuggestions(items.map(\.label))
+    }
+
+    private func acceptCompletion(_ i: Int) {
+        guard let range = completionRange, completionItems.indices.contains(i),
+              NSMaxRange(range) <= textView.textStorage.length else { return }
+        let item = completionItems[i]
+        completionRange = nil; completionItems = []
+        accessory?.setSuggestions([])
+        if item.isSnippet {
+            textView.selectedRange = range
+            textView.insertSnippet(item.insert)
+        } else {
+            replace(range, with: item.insert, cursorOffset: (item.insert as NSString).length)
+        }
     }
 
     // MARK: Live sessions
@@ -212,6 +309,7 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         }
         recomputeLines()
         highlightNow(sync: true)
+        scheduleIndex()
         let len = textView.textStorage.length
         textView.selectedRange = NSRange(location: min(sel.location, len), length: 0)
         textView.setContentOffset(offset, animated: false)
@@ -261,7 +359,9 @@ final class EditorContainerView: UIView, UITextViewDelegate {
 
     func handleChange() {
         if isReplacing { return }
+        if !problemLines.isEmpty { showDiagnostics([]) }   // stale until the next check
         recomputeLines()
+        scheduleIndex()
         onTextChange?(textView.textStorage.string)
         scheduleHighlight()
         reportCursor()
@@ -342,6 +442,7 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     func textViewDidChangeSelection(_ tv: UITextView) {
         reportCursor()
         onSelection?(tv.selectedRange)
+        updateCompletions()
         gutter.setNeedsDisplay()
     }
 
@@ -491,6 +592,8 @@ final class EditorContainerView: UIView, UITextViewDelegate {
             NotificationCenter.default.post(name: .showSnippets, object: nil)
         case .dismiss:
             tv.resignFirstResponder()
+        case .complete(let i):
+            acceptCompletion(i)
         }
         tv.scrollRangeToVisible(tv.selectedRange)
     }
@@ -561,7 +664,14 @@ final class GutterView: UIView {
             }
             let y = fragment.minY + inset.top - tv.contentOffset.y
             if y > bounds.height { break }
-            let attrs = line == currentLine ? active : normal
+            var attrs = line == currentLine ? active : normal
+            if let sev = owner.problemLines[line + 1] {
+                let color: UIColor = sev == .error ? .systemRed : sev == .warning ? .systemOrange : .systemBlue
+                attrs[.foregroundColor] = color
+                let dotY = y + baselineOffset - font.ascender + font.lineHeight / 2 - 2.5
+                color.setFill()
+                UIBezierPath(ovalIn: CGRect(x: 3, y: dotY, width: 5, height: 5)).fill()
+            }
             let label = "\(line + 1)" as NSString
             let size = label.size(withAttributes: attrs)
             let drawY = y + baselineOffset - font.ascender

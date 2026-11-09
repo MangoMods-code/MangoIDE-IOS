@@ -5,6 +5,8 @@ struct ConsoleView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var router: Router
     @State private var showInput = false
+    @State private var typed = ""
+    @FocusState private var inputFocused: Bool
     @Environment(\.chrome) private var chrome
 
     var body: some View {
@@ -13,6 +15,10 @@ struct ConsoleView: View {
                 Label("Console", systemImage: "terminal").font(.subheadline.weight(.semibold))
                 if console.isRunning { ProgressView().scaleEffect(0.7) }
                 Spacer()
+                if console.sessionID != nil {
+                    Button { console.stop() } label: { Image(systemName: "stop.fill").foregroundStyle(.red) }
+                }
+                Button { router.show(.runConfig) } label: { Image(systemName: "slider.horizontal.3") }
                 Button { showInput.toggle() } label: {
                     Image(systemName: "keyboard").foregroundStyle(showInput || !console.stdin.isEmpty ? Color.accentColor : Color.secondary)
                 }
@@ -65,6 +71,31 @@ struct ConsoleView: View {
                 .onChange(of: console.lines.last?.id) { _ in
                     if let last = console.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
+                .onChange(of: console.lines.last?.text) { _ in
+                    if let last = console.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+            if console.sessionID != nil {
+                Divider()
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tint)
+                    TextField("Type input, then return", text: $typed)
+                        .font(.system(size: CGFloat(settings.consoleFontSize), design: .monospaced))
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .submitLabel(.send)
+                        .focused($inputFocused)
+                        .onSubmit {
+                            console.sendInput(typed)
+                            typed = ""
+                            inputFocused = true
+                        }
+                    Menu {
+                        Button("Send End of Input (Ctrl-D)") { console.sendEndOfInput() }
+                        Button("Stop Program", role: .destructive) { console.stop() }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
             }
         }
         .background(chrome.background.map { $0.opacity(chrome.translucent ? 0.8 : 1) } ?? Color(uiColor: .secondarySystemBackground))
@@ -76,6 +107,7 @@ struct ConsoleView: View {
         case .err: return .red
         case .info: return .secondary
         case .success: return .green
+        case .input: return .accentColor
         }
     }
 }

@@ -154,6 +154,15 @@ struct EditorSettings: View {
                 Toggle("Auto-Indent New Lines", isOn: $s.autoIndent)
                 Toggle("Smart Backspace", isOn: $s.smartBackspace)
             }
+            Section {
+                Toggle("Suggestions While Typing", isOn: $s.autocomplete)
+                Toggle("Underline Errors", isOn: $s.checkErrors)
+                if s.checkErrors {
+                    Toggle("Check with Runner Server", isOn: $s.checkWithRunner)
+                }
+            } header: { Text("Code Smarts") } footer: {
+                Text("Suggestions show above the keyboard: words from your file, keywords and snippets. JSON and JavaScript are checked on the phone; Python, C, C++, Go, Rust, Swift, Java, Ruby, PHP, Lua, shell and Perl are checked by your runner server.")
+            }
             Section("Typing") {
                 Toggle("Auto-Close Brackets", isOn: $s.autoCloseBrackets)
                 Toggle("Auto-Close Quotes", isOn: $s.autoCloseQuotes)

@@ -17,6 +17,9 @@ struct CloseRequest: Identifiable {
 /// Open files, tabs and the (optional) side-by-side split.
 final class EditorState: ObservableObject {
     @Published private(set) var documents: [UUID: EditorDocument] = [:]
+    /// The app's editor, for code that runs outside the view tree (running, live preview).
+    static weak var current: EditorState?
+
     @Published var panes: [PaneState] = [PaneState()]
     @Published var focusedPane = 0
     @Published var closeRequest: CloseRequest?

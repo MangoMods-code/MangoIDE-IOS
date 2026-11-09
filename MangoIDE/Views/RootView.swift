@@ -136,6 +136,11 @@ struct RootView: View {
             case .collab: CollabView()
             case .openShare(let code): OpenShareSheet(code: code)
             case .joinLive(let code): JoinLiveSheet(code: code)
+            case .problems: ProblemsSheet()
+            case .findInFiles: FindInFilesView()
+            case .outline: OutlineSheet()
+            case .definitions(let name, let results): DefinitionsSheet(name: name, results: results)
+            case .runConfig: RunConfigSheet()
             case .agent:
                 if #available(iOS 16.4, *) {
                     AgentView()
@@ -247,12 +252,20 @@ struct TopBar: View {
                     .disabled(editor.activeDocument == nil)
                 Button { editor.saveAll(); router.flash("Saved all") } label: { Label("Save All", systemImage: "square.stack.3d.down.forward") }
             }
+            Section {
+                Button { router.show(.findInFiles) } label: { Label("Find in Files…", systemImage: "doc.text.magnifyingglass") }
+                Button { router.show(.problems) } label: { Label("Problems", systemImage: "exclamationmark.triangle") }
+                Button { router.show(.runConfig) } label: { Label("Run Settings…", systemImage: "slider.horizontal.3") }
+            }
             if editor.activeDocument != nil {
                 Section {
                     Button { editor.showFind(replace: false) } label: { Label("Find", systemImage: "magnifyingglass") }
                     Button { editor.showFind(replace: true) } label: { Label("Find & Replace", systemImage: "arrow.left.arrow.right") }
                     Button { router.goToLineText = ""; router.showGoToLine = true } label: { Label("Go to Line…", systemImage: "arrow.down.to.line") }
                     Button { router.show(.snippets) } label: { Label("Insert Snippet…", systemImage: "text.badge.plus") }
+                    Button { router.show(.outline) } label: { Label("Go to Symbol…", systemImage: "list.bullet.indent") }
+                    Button { CodeActions.goToDefinition(editor: editor, workspace: workspace, router: router) } label: { Label("Go to Definition", systemImage: "arrow.right.circle") }
+                    Button { CodeActions.format(editor: editor, router: router) } label: { Label("Format Document", systemImage: "text.alignleft") }
                     Menu {
                         Button { editor.activeTextView?.toggleComment(lineComment: extensions.language(for: editor.activeDocument?.url).lineComment) } label: { Label("Toggle Comment", systemImage: "number") }
                         Button { editor.activeTextView?.indentSelection(outdent: false) } label: { Label("Indent", systemImage: "increase.indent") }
@@ -328,6 +341,7 @@ struct StatusBar: View {
             if let doc = editor.activeDocument {
                 Text(workspace.displayPath(doc.url.deletingLastPathComponent())).lineLimit(1).truncationMode(.head)
                 Spacer()
+                ProblemsBadge(doc: doc)
                 CursorLabel(cursor: editor.cursor)
                 Text(settings.insertSpaces ? "Spaces: \(settings.tabWidth)" : "Tabs")
                 Menu(extensions.language(for: doc.url).name) {

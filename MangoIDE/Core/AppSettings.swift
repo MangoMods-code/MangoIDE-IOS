@@ -39,6 +39,16 @@ final class AppSettings: ObservableObject {
     @Published var accessoryKeys: String { didSet { put(accessoryKeys, "accessoryKeys") } }
     @Published var accessoryShowArrows: Bool { didSet { put(accessoryShowArrows, "accessoryShowArrows") } }
     @Published var accessoryShowUndo: Bool { didSet { put(accessoryShowUndo, "accessoryShowUndo") } }
+    /// Word and snippet suggestions above the keyboard.
+    @Published var autocomplete: Bool { didSet { put(autocomplete, "autocomplete") } }
+    /// Underline errors a moment after you stop typing.
+    @Published var checkErrors: Bool { didSet { put(checkErrors, "checkErrors"); DiagnosticsCenter.recheckAll() } }
+    /// Use the runner server to check languages the phone can't (Python, C, Go, Rust…).
+    @Published var checkWithRunner: Bool { didSet { put(checkWithRunner, "checkWithRunner"); DiagnosticsCenter.recheckAll() } }
+    /// Run programs so you can type input while they run (needs an up-to-date runner).
+    @Published var interactiveRuns: Bool { didSet { put(interactiveRuns, "interactiveRuns") } }
+    /// HTML previews reload as you type.
+    @Published var livePreview: Bool { didSet { put(livePreview, "livePreview") } }
 
     // MARK: Appearance
     @Published var themeID: String { didSet { put(themeID, "themeID") } }
@@ -140,6 +150,11 @@ final class AppSettings: ObservableObject {
         accessoryKeys = AppSettings.v("accessoryKeys", AppSettings.defaultAccessoryKeys)
         accessoryShowArrows = AppSettings.v("accessoryShowArrows", true)
         accessoryShowUndo = AppSettings.v("accessoryShowUndo", true)
+        autocomplete = AppSettings.v("autocomplete", true)
+        checkErrors = AppSettings.v("checkErrors", true)
+        checkWithRunner = AppSettings.v("checkWithRunner", true)
+        interactiveRuns = AppSettings.v("interactiveRuns", true)
+        livePreview = AppSettings.v("livePreview", true)
 
         themeID = AppSettings.v("themeID", "mango-dark")
         appearance = AppSettings.v("appearance", "system")
@@ -221,6 +236,8 @@ final class AppSettings: ObservableObject {
         trimTrailingWhitespace = fresh.trimTrailingWhitespace; insertFinalNewline = fresh.insertFinalNewline
         showKeyboardAccessory = fresh.showKeyboardAccessory; accessoryKeys = fresh.accessoryKeys
         accessoryShowArrows = fresh.accessoryShowArrows; accessoryShowUndo = fresh.accessoryShowUndo
+        autocomplete = fresh.autocomplete; checkErrors = fresh.checkErrors; checkWithRunner = fresh.checkWithRunner
+        interactiveRuns = fresh.interactiveRuns; livePreview = fresh.livePreview
         themeID = fresh.themeID; appearance = fresh.appearance; accentName = fresh.accentName
         showFileIcons = fresh.showFileIcons; compactTabs = fresh.compactTabs
         showTabCloseButtons = fresh.showTabCloseButtons; sidebarWidth = fresh.sidebarWidth
@@ -315,7 +332,7 @@ final class AppSettings: ObservableObject {
                      smartBackspace: smartBackspace, spellCheck: spellCheck, autocorrect: autocorrect,
                      scrollPastEnd: scrollPastEnd, largeFileThreshold: largeFileThreshold,
                      showAccessory: showKeyboardAccessory, accessoryKeys: accessoryKeys,
-                     accessoryArrows: accessoryShowArrows, accessoryUndo: accessoryShowUndo)
+                     accessoryArrows: accessoryShowArrows, accessoryUndo: accessoryShowUndo, autocomplete: autocomplete)
     }
 }
 
@@ -341,6 +358,7 @@ struct EditorConfig: Equatable {
     var accessoryKeys: String
     var accessoryArrows: Bool
     var accessoryUndo: Bool
+    var autocomplete: Bool
 
     var indentUnit: String { insertSpaces ? String(repeating: " ", count: max(1, tabWidth)) : "\t" }
 

@@ -3,15 +3,19 @@ import UIKit
 /// The scrollable row of coding keys above the keyboard.
 final class AccessoryBar: UIInputView {
     enum Key: Equatable {
-        case text(String), tab, outdent, left, right, up, down, undo, redo, comment, snippets, dismiss
+        case text(String), tab, outdent, left, right, up, down, undo, redo, comment, snippets, dismiss, complete(Int)
     }
 
     var onKey: ((Key) -> Void)?
     private let scroll = UIScrollView()
     private let stack = UIStackView()
     private var buttons: [UIButton] = []
+    private var suggestionViews: [UIView] = []
+    private var suggestionLabels: [String] = []
+    private var theme: EditorTheme
 
     init(config: EditorConfig, theme: EditorTheme) {
+        self.theme = theme
         super.init(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 46), inputViewStyle: .keyboard)
         allowsSelfSizing = true
         autoresizingMask = .flexibleWidth
@@ -61,7 +65,42 @@ final class AccessoryBar: UIInputView {
 
     override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: 46) }
 
+    /// Autocomplete suggestions, shown first in the row (tap to insert).
+    func setSuggestions(_ labels: [String]) {
+        guard labels != suggestionLabels else { return }
+        suggestionLabels = labels
+        suggestionViews.forEach { $0.removeFromSuperview() }
+        suggestionViews.removeAll()
+        guard !labels.isEmpty else { return }
+        for (i, label) in labels.enumerated() {
+            let b = UIButton(type: .system)
+            b.layer.cornerRadius = 7
+            b.layer.cornerCurve = .continuous
+            b.contentEdgeInsets = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
+            b.setTitle(label, for: .normal)
+            b.titleLabel?.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .semibold)
+            b.titleLabel?.lineBreakMode = .byTruncatingTail
+            b.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
+            let accent = UIColor(hex: theme.accent ?? theme.cursor)
+            b.backgroundColor = accent.withAlphaComponent(theme.isDark ? 0.35 : 0.2)
+            b.setTitleColor(theme.isDark ? .white : .label, for: .normal)
+            b.addAction(UIAction { [weak self] _ in
+                UIDevice.current.playInputClick()
+                self?.onKey?(.complete(i))
+            }, for: .touchUpInside)
+            stack.insertArrangedSubview(b, at: i)
+            suggestionViews.append(b)
+        }
+        let divider = UIView()
+        divider.backgroundColor = UIColor.separator
+        divider.widthAnchor.constraint(equalToConstant: 1).isActive = true
+        stack.insertArrangedSubview(divider, at: labels.count)
+        suggestionViews.append(divider)
+        scroll.setContentOffset(.zero, animated: false)
+    }
+
     func applyTheme(_ theme: EditorTheme) {
+        self.theme = theme
         for b in buttons {
             b.backgroundColor = theme.isDark ? UIColor(white: 1, alpha: 0.12) : UIColor(white: 1, alpha: 0.9)
             b.tintColor = theme.isDark ? .white : .label

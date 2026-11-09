@@ -44,6 +44,25 @@ final class EditorDocument: ObservableObject, Identifiable {
     /// Other people's cursors in this file.
     private(set) var peers: [PeerCaret] = []
 
+    // MARK: Problems
+
+    /// Errors and warnings found in this file (see DiagnosticsCenter).
+    @Published private(set) var diagnostics: [Diagnostic] = []
+    private var diagnosticListeners: [UUID: ([Diagnostic]) -> Void] = [:]
+
+    func addDiagnosticsListener(_ id: UUID, _ cb: @escaping ([Diagnostic]) -> Void) { diagnosticListeners[id] = cb }
+
+    func setDiagnostics(_ list: [Diagnostic]) {
+        guard list != diagnostics else { return }
+        diagnostics = list
+        for cb in diagnosticListeners.values { cb(list) }
+    }
+
+    private func textChanged() {
+        DiagnosticsCenter.shared.schedule(self)
+        NotificationCenter.default.post(name: .documentEdited, object: self)
+    }
+
     func addRemoteListener(_ id: UUID, _ cb: @escaping (_ edits: [(NSRange, String)], _ old: String, _ new: String) -> Void) { remoteListeners[id] = cb }
     func addPeerListener(_ id: UUID, _ cb: @escaping ([PeerCaret]) -> Void) { peerListeners[id] = cb }
 
@@ -54,6 +73,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         if !isDirty { isDirty = true }
         scheduleDraft()
         for cb in remoteListeners.values { cb(edits, old, newText) }
+        textChanged()
     }
 
     /// The live session's copy wins (after a resync). Doesn't count as your edit.
@@ -73,6 +93,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         self.url = url
         load()
         restoreDraft()
+        DiagnosticsCenter.shared.schedule(self, delay: 0.4)
     }
 
     // MARK: Drafts (unsaved edits that survive closing the app)
@@ -123,7 +144,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         do {
             let data = try Data(contentsOf: url, options: .mappedIfSafe)
             let before = text
-            defer { if !isBinary, before != text { onLocalChange?(before, text) } }
+            defer { if !isBinary, before != text { onLocalChange?(before, text); textChanged() } }
             if data.prefix(8000).contains(0) {
                 isBinary = true
                 viewer = .hex
@@ -146,13 +167,14 @@ final class EditorDocument: ObservableObject, Identifiable {
     // MARK: Live sync between editors showing this file
 
     func addListener(_ id: UUID, _ onChange: @escaping (String) -> Void) { listeners[id] = onChange }
-    func removeListener(_ id: UUID) { listeners[id] = nil; remoteListeners[id] = nil; peerListeners[id] = nil }
+    func removeListener(_ id: UUID) { listeners[id] = nil; remoteListeners[id] = nil; peerListeners[id] = nil; diagnosticListeners[id] = nil }
 
     /// Called by a text view on every edit. `source` is that view's id so it isn't told about its own change.
     func userEdited(_ newText: String, source: UUID) {
         let old = text
         text = newText
         onLocalChange?(old, newText)
+        textChanged()
         lastEditor = source
         if !isDirty { isDirty = true }
         scheduleAutosave()
@@ -173,6 +195,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         let old = text
         text = newText
         onLocalChange?(old, newText)
+        textChanged()
         if markDirty { isDirty = true; scheduleAutosave(); scheduleDraft() }
         contentVersion += 1
     }
@@ -222,6 +245,7 @@ final class EditorDocument: ObservableObject, Identifiable {
                 } else {
                     self.saveError = nil
                     self.lastSaved = Date()
+                    NotificationCenter.default.post(name: .documentSaved, object: self)
                     if !self.isDirty { self.clearDraft() }
                     if Workspace.shared.isInside(target, Workspace.shared.extensionsFolder) {
                         ExtensionManager.shared.reload()
@@ -244,7 +268,10 @@ final class EditorDocument: ObservableObject, Identifiable {
     func saveNow() {
         guard isDirty, !isBinary, loadError == nil else { return }
         autosaveWork?.cancel()
-        do { try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false; clearDraft() }
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false; clearDraft()
+            NotificationCenter.default.post(name: .documentSaved, object: self)
+        }
         catch { saveError = "Couldn't save: \(error.localizedDescription)" }
     }
 }
@@ -257,4 +284,11 @@ struct PeerCaret: Equatable {
     let color: String
     let location: Int
     let length: Int
+}
+
+extension Notification.Name {
+    /// Posted (object: EditorDocument) whenever a document's text changes.
+    static let documentEdited = Notification.Name("mango.documentEdited")
+    /// Posted (object: EditorDocument) after a document is written to disk.
+    static let documentSaved = Notification.Name("mango.documentSaved")
 }

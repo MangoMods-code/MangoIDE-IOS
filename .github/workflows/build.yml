@@ -67,8 +67,7 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: MangoIDE ${{ env.APP_VERSION }} (build ${{ github.run_number }})
-          body: |
-            MangoIDE version ${{ env.APP_VERSION }} (build ${{ github.run_number }}), unsigned, from ${{ github.sha }}.
-            Upload MangoIDE.ipa to Mango Signer; it will install as an update over any earlier build.
+          # What's new, in plain words for the people installing it. Edit RELEASE_NOTES.md with each update.
+          body_path: RELEASE_NOTES.md
           files: MangoIDE.ipa
           make_latest: true

@@ -348,54 +348,173 @@ struct DocumentPicker: UIViewControllerRepresentable {
 struct PreviewSheet: View {
     let item: PreviewItem
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var settings = AppSettings.shared
     @State private var reloadToken = UUID()
+
+    private var isLive: Bool {
+        guard settings.livePreview, let url = item.fileURL else { return false }
+        return ["html", "htm", "xhtml"].contains(url.pathExtension.lowercased())
+    }
 
     var body: some View {
         NavigationStack {
-            WebView(item: item, reloadToken: reloadToken)
+            WebView(item: item, reloadToken: reloadToken, live: isLive)
                 .ignoresSafeArea(edges: .bottom)
                 .navigationTitle(item.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                    if isLive {
+                        ToolbarItem(placement: .principal) {
+                            HStack(spacing: 5) {
+                                Circle().fill(Color.green).frame(width: 7, height: 7)
+                                Text(item.title).font(.headline).lineLimit(1)
+                            }
+                            .accessibilityLabel("\(item.title), live preview")
+                        }
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button { reloadToken = UUID() } label: { Image(systemName: "arrow.clockwise") }
                     }
                 }
         }
+        .modifier(PreviewDetents())
     }
 }
 
+/// Half-height preview you can keep open while typing in the editor behind it.
+private struct PreviewDetents: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 16.4, *) {
+            content.presentationDetents([.medium, .large]).presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        } else {
+            content.presentationDetents([.medium, .large])
+        }
+    }
+}
+
+/// Shows HTML, Markdown, CSV and SVG previews. Live HTML previews reload as you type in the page and
+/// whenever a file next to it (CSS, JavaScript, images) is saved, keeping your scroll position.
 struct WebView: UIViewRepresentable {
     let item: PreviewItem
     let reloadToken: UUID
+    var live = false
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         let wv = WKWebView(frame: .zero, configuration: config)
         if #available(iOS 16.4, *) { wv.isInspectable = true }
-        load(wv)
-        context.coordinator.token = reloadToken
+        let c = context.coordinator
+        c.webView = wv
+        c.item = item
+        wv.navigationDelegate = c
+        c.token = reloadToken
+        c.setLive(live)
+        c.load(text: c.liveText())
         return wv
     }
 
     func updateUIView(_ wv: WKWebView, context: Context) {
-        if context.coordinator.token != reloadToken {
-            context.coordinator.token = reloadToken
-            load(wv)
+        let c = context.coordinator
+        c.setLive(live)
+        if c.token != reloadToken {
+            c.token = reloadToken
+            c.reload()
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var token: UUID? }
+    static func dismantleUIView(_ wv: WKWebView, coordinator: Coordinator) { coordinator.cleanUp() }
 
-    private func load(_ wv: WKWebView) {
-        if let url = item.fileURL {
-            wv.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        } else if let html = item.html {
-            wv.loadHTMLString(html, baseURL: nil)
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        var token: UUID?
+        weak var webView: WKWebView?
+        var item: PreviewItem?
+        private var live = false
+        private var observers: [NSObjectProtocol] = []
+        private var pending: DispatchWorkItem?
+        private var tempFile: URL?
+        private var restoreScroll: Double = 0
+
+        private var file: URL? { item?.fileURL }
+        private var readRoot: URL? {
+            guard let file else { return nil }
+            return Workspace.shared.projectFolder(containing: file) ?? file.deletingLastPathComponent()
         }
+
+        func setLive(_ on: Bool) {
+            guard on != live else { return }
+            live = on
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard on else { return }
+            observers.append(NotificationCenter.default.addObserver(forName: .documentEdited, object: nil, queue: .main) { [weak self] n in
+                guard let self, let doc = n.object as? EditorDocument, let file = self.file,
+                      doc.url.standardizedFileURL == file.standardizedFileURL else { return }
+                self.schedule()
+            })
+            observers.append(NotificationCenter.default.addObserver(forName: .documentSaved, object: nil, queue: .main) { [weak self] n in
+                guard let self, let doc = n.object as? EditorDocument, let root = self.readRoot,
+                      Workspace.shared.isInside(doc.url, root) else { return }
+                self.schedule()
+            })
+        }
+
+        /// The page's unsaved text, if it's open with edits.
+        func liveText() -> String? {
+            guard live, let file, let doc = EditorState.current?.documents.values.first(where: { $0.url.standardizedFileURL == file.standardizedFileURL }),
+                  doc.isDirty else { return nil }
+            return doc.text
+        }
+
+        private func schedule() {
+            pending?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.reload() }
+            pending = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+        }
+
+        func reload() {
+            guard let wv = webView else { return }
+            wv.evaluateJavaScript("window.scrollY") { [weak self] y, _ in
+                guard let self else { return }
+                self.restoreScroll = (y as? Double) ?? 0
+                self.load(text: self.liveText())
+            }
+        }
+
+        func load(text: String?) {
+            guard let wv = webView, let item else { return }
+            if let file = item.fileURL, let root = readRoot {
+                if let text {
+                    // Unsaved edits go in a hidden file next to the page so its relative links still work.
+                    let temp = file.deletingLastPathComponent().appendingPathComponent(".mango-preview-" + file.lastPathComponent)
+                    if (try? text.write(to: temp, atomically: true, encoding: .utf8)) != nil {
+                        tempFile = temp
+                        wv.loadFileURL(temp, allowingReadAccessTo: root)
+                        return
+                    }
+                }
+                wv.loadFileURL(file, allowingReadAccessTo: root)
+            } else if let html = item.html {
+                wv.loadHTMLString(html, baseURL: nil)
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if restoreScroll > 0 { webView.evaluateJavaScript("window.scrollTo(0, \(restoreScroll))") }
+        }
+
+        func cleanUp() {
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            pending?.cancel()
+            if let tempFile { try? FileManager.default.removeItem(at: tempFile) }
+        }
+
+        deinit { cleanUp() }
     }
 }
 

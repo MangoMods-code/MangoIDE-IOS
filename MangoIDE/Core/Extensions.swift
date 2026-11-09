@@ -76,6 +76,8 @@ final class ExtensionManager: ObservableObject {
         active.flatMap { $0.languages ?? [] } + LanguageLibrary.builtIn
     }
 
+    func languageID(for url: URL) -> String { language(for: url).id }
+
     func language(for url: URL?) -> LanguageDef {
         guard let url else { return .plain }
         let ext = url.pathExtension

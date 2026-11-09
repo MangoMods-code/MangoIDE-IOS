@@ -15,7 +15,7 @@ const KEY = process.env.RUNNER_KEY || "";
 const RUN_TIMEOUT = Number(process.env.RUN_TIMEOUT_MS || 15000);
 const COMPILE_TIMEOUT = Number(process.env.COMPILE_TIMEOUT_MS || 60000);
 const MAX_OUTPUT = 256 * 1024;
-const MAX_BODY = 2 * 1024 * 1024;
+const MAX_BODY = 8 * 1024 * 1024;
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 4);
 // MangoIDE agent: the Anthropic API key lives only here, never in the app.
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
@@ -133,29 +133,41 @@ function exec(cmd, { cwd, stdin, timeout }) {
 
 let running = 0;
 
+/// Writes the files into a fresh folder. The first file is the one that runs (saved as main.<ext>);
+/// the rest keep their paths (src/util.py stays src/util.py) so imports between files work.
+function prepare(def, files, keepNames) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "run-"));
+  if (sandboxUser) fs.chownSync(dir, sandboxUser.uid, sandboxUser.gid);
+  let mainPath = null;
+  files.forEach((f, i) => {
+    const rel = String(f.name || `file${i}`).replace(/\\/g, "/").split("/").filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`;
+    // keepNames: run the project's own entry file where it lives (src/app.py), so its imports work.
+    const name = i === 0 && !(keepNames && path.extname(rel)) ? "main." + def.ext : rel;
+    const p = path.join(dir, name);
+    if (!p.startsWith(dir + path.sep)) return;
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    let content = typeof f.content === "string" ? f.content : "";
+    // Kotlin scripts don't call main() on their own.
+    if (i === 0 && def.wrapKotlin && /fun\s+main\s*\(/.test(content)) content += "\n\nmain()\n";
+    fs.writeFileSync(p, content);
+    if (i === 0) mainPath = p;
+  });
+  chownTree(dir);
+  return { dir, mainPath };
+}
+
+const cleanArgs = (a) => (Array.isArray(a) ? a : []).slice(0, 64).map((x) => String(x).slice(0, 4000));
+
 async function execute(body) {
   const [lang, def] = findLang(body.language);
   if (!lang) return [400, { message: `${body.language} isn't supported by this runner.` }];
   if (def.missing) return [400, { message: `${lang} isn't installed on this runner.` }];
-  const files = Array.isArray(body.files) ? body.files : [];
+  const files = Array.isArray(body.files) ? body.files.slice(0, 500) : [];
   if (!files.length || typeof files[0].content !== "string") return [400, { message: "No code was sent." }];
   if (running >= MAX_CONCURRENT) return [429, { message: "The runner is busy, try again in a moment." }];
   running++;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "run-"));
+  const { dir, mainPath } = prepare(def, files, !!body.keep_names);
   try {
-    if (sandboxUser) fs.chownSync(dir, sandboxUser.uid, sandboxUser.gid);
-    let mainPath = null;
-    files.forEach((f, i) => {
-      let name = path.basename(String(f.name || `file${i}`)) || `file${i}`;
-      if (i === 0) name = "main." + def.ext;
-      const p = path.join(dir, name);
-      let content = f.content;
-      // Kotlin scripts don't call main() on their own.
-      if (i === 0 && def.wrapKotlin && /fun\s+main\s*\(/.test(content)) content += "\n\nmain()\n";
-      fs.writeFileSync(p, content);
-      if (sandboxUser) fs.chownSync(p, sandboxUser.uid, sandboxUser.gid);
-      if (i === 0) mainPath = p;
-    });
     const vars = { file: mainPath, dir };
     const result = { language: lang, version: def.versionString };
     if (def.compile) {
@@ -163,7 +175,7 @@ async function execute(body) {
       result.compile = c;
       if (c.code !== 0) return [200, result];
     }
-    result.run = await exec(fill(def.run, vars), { cwd: dir, stdin: body.stdin || "", timeout: RUN_TIMEOUT });
+    result.run = await exec([...fill(def.run, vars), ...cleanArgs(body.args)], { cwd: dir, stdin: body.stdin || "", timeout: RUN_TIMEOUT });
     return [200, result];
   } finally {
     running--;
@@ -274,6 +286,9 @@ async function wsExec(body) {
   return [200, { stdout: r.stdout, stderr: r.stderr, code: r.code, signal: r.signal, changed, truncated }];
 }
 
+const extras = require("./extras")({ LANGS, findLang, fill, prepare, exec, cleanArgs, sandboxUser, readBody, send, COMPILE_TIMEOUT,
+  isRunning: () => running, MAX_CONCURRENT });
+
 http.createServer((req, res) => {
   const url = (req.url || "/").split("?")[0].replace(/\/+$/, "") || "/";
   if (req.method === "GET" && (url === "/" || url === "/health")) {
@@ -281,6 +296,7 @@ http.createServer((req, res) => {
   }
   if (!authorized(req)) return send(res, 401, { message: "Wrong or missing runner key. Check Settings › Run in MangoIDE." });
   if (req.method === "GET" && url === "/api/v2/runtimes") return send(res, 200, RUNTIMES);
+  if (extras.route(req, res, url)) return;
   if (req.method === "POST" && (url === "/workspace/sync" || url === "/workspace/exec")) {
     readBody(req, WS_MAX_BODY).then(async (raw) => {
       let body;

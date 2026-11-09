@@ -3,10 +3,12 @@ import JavaScriptCore
 import SwiftUI
 
 struct ConsoleLine: Identifiable {
-    enum Kind { case out, err, info, success }
+    enum Kind { case out, err, info, success, input }
     let id = UUID()
     let kind: Kind
-    let text: String
+    var text: String
+    /// Continues the previous line (a prompt like "Name? " followed by what you typed).
+    var joinsPrevious = false
 }
 
 final class ConsoleModel: ObservableObject {
@@ -15,6 +17,9 @@ final class ConsoleModel: ObservableObject {
     @Published var isRunning = false
     @Published var stdin = ""
     @Published var preview: PreviewItem?
+    /// Set while an interactive program is running on the runner: you can type input to it.
+    @Published private(set) var sessionID: String?
+    private var lastLineOpen = false
 
     static let maxLines = 2000
     static let maxLineLength = 4000
@@ -26,8 +31,50 @@ final class ConsoleModel: ObservableObject {
     private var flushScheduled = false
 
     func clear() {
-        lock.lock(); pending.removeAll(); lock.unlock()
+        lock.lock(); pending.removeAll(); lastLineOpen = false; lock.unlock()
         lines = []
+    }
+
+    /// Output that arrives in pieces: text without a newline stays on the same line until one comes.
+    func write(_ kind: ConsoleLine.Kind, _ chunk: String) {
+        guard !chunk.isEmpty else { return }
+        var parts = chunk.components(separatedBy: "\n")
+        let endsOpen = !chunk.hasSuffix("\n")
+        if !endsOpen { parts.removeLast() }
+        lock.lock()
+        for (i, p) in parts.enumerated() {
+            let t = p.count > ConsoleModel.maxLineLength ? String(p.prefix(ConsoleModel.maxLineLength)) + " …" : p
+            pending.append(ConsoleLine(kind: kind, text: t, joinsPrevious: i == 0 && lastLineOpen))
+        }
+        lastLineOpen = endsOpen
+        if pending.count > ConsoleModel.maxLines { pending.removeFirst(pending.count - ConsoleModel.maxLines) }
+        let needsSchedule = !flushScheduled
+        flushScheduled = true
+        lock.unlock()
+        if needsSchedule {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.flush() }
+        }
+    }
+
+    // MARK: Typing into a running program
+
+    func attachSession(_ id: String?) { DispatchQueue.main.async { self.sessionID = id } }
+
+    func sendInput(_ text: String) {
+        guard let id = sessionID else { return }
+        write(.input, text + "\n")
+        RunService.sessionPost(id, "input", ["data": text + "\n"])
+    }
+
+    func sendEndOfInput() {
+        guard let id = sessionID else { return }
+        write(.info, "^D\n")
+        RunService.sessionPost(id, "input", ["eof": true])
+    }
+
+    func stop() {
+        guard let id = sessionID else { return }
+        RunService.sessionPost(id, "kill", [:])
     }
 
     func append(_ kind: ConsoleLine.Kind, _ text: String) {
@@ -38,6 +85,7 @@ final class ConsoleModel: ObservableObject {
             return ConsoleLine(kind: kind, text: t)
         }
         lock.lock()
+        lastLineOpen = false
         pending.append(contentsOf: new)
         if pending.count > ConsoleModel.maxLines { pending.removeFirst(pending.count - ConsoleModel.maxLines) }
         let needsSchedule = !flushScheduled
@@ -56,7 +104,14 @@ final class ConsoleModel: ObservableObject {
         lock.unlock()
         guard !batch.isEmpty else { return }
         var next = lines
-        next.append(contentsOf: batch)
+        for line in batch {
+            if line.joinsPrevious, var last = next.last {
+                last.text += line.text
+                next[next.count - 1] = last
+            } else {
+                next.append(line)
+            }
+        }
         if next.count > ConsoleModel.maxLines { next.removeFirst(next.count - ConsoleModel.maxLines) }
         lines = next
     }
@@ -74,11 +129,29 @@ struct PreviewItem: Identifiable {
 /// Runs the active file: JavaScript on the device, HTML/Markdown as a preview,
 /// everything else on a Piston-compatible runner server.
 enum RunService {
-    static func run(_ doc: EditorDocument, language: LanguageDef, console: ConsoleModel) {
+    static func run(_ doc: EditorDocument, language docLanguage: LanguageDef, console: ConsoleModel) {
         let s = AppSettings.shared
-        if s.saveBeforeRun || language.runner == "html" { doc.saveNow() }
-        if doc.url.pathExtension.lowercased() == "svg" {
-            console.preview = PreviewItem(title: doc.name, html: nil, fileURL: doc.url)
+        // A project can pick its own entry file, arguments and input (Run Settings).
+        let project = Workspace.shared.projectFolder(containing: doc.url)
+        let config = project.map(RunConfig.load) ?? RunConfig()
+        var target = doc.url
+        var code = doc.text
+        var language = docLanguage
+        if let project, !config.entry.isEmpty {
+            let entry = project.appendingPathComponent(config.entry)
+            if FileManager.default.fileExists(atPath: entry.path) {
+                target = entry
+                language = ExtensionManager.shared.language(for: entry)
+                if let open = openDocument(entry) { code = open.text } else { code = (try? String(contentsOf: entry, encoding: .utf8)) ?? "" }
+            }
+        }
+        let name = target.lastPathComponent
+        if s.saveBeforeRun || language.runner == "html" {
+            doc.saveNow()
+            if target != doc.url { openDocument(target)?.saveNow() }
+        }
+        if target.pathExtension.lowercased() == "svg" {
+            console.preview = PreviewItem(title: name, html: nil, fileURL: target)
             return
         }
         guard let runner = language.runner else {
@@ -88,36 +161,73 @@ enum RunService {
         }
         switch runner {
         case "html":
-            console.preview = PreviewItem(title: doc.name, html: nil, fileURL: doc.url)
+            console.preview = PreviewItem(title: name, html: nil, fileURL: target)
             return
         case "markdown":
-            console.preview = PreviewItem(title: doc.name, html: MarkdownHTML.render(doc.text), fileURL: nil)
+            console.preview = PreviewItem(title: name, html: MarkdownHTML.render(code), fileURL: nil)
             return
         case "csv":
-            console.preview = PreviewItem(title: doc.name, html: CSVTable.html(doc.text, tabs: doc.url.pathExtension.lowercased() == "tsv"), fileURL: nil)
+            console.preview = PreviewItem(title: name, html: CSVTable.html(code, tabs: target.pathExtension.lowercased() == "tsv"), fileURL: nil)
             return
         default: break
         }
+        if let old = console.sessionID { sessionPost(old, "kill", [:]); console.attachSession(nil) }
         if s.clearConsoleOnRun { console.clear() }
         if s.showConsoleOnRun { console.isVisible = true }
         s.haptic(.medium)
-        console.append(.info, "▶ Running \(doc.name)…")
+        let args = config.argList
+        console.append(.info, "▶ Running \(name)" + (args.isEmpty ? "" : " " + args.joined(separator: " ")) + "…")
         console.isRunning = true
         let start = Date()
         let finish: (Bool) -> Void = { ok in
             DispatchQueue.main.async {
                 console.isRunning = false
+                console.attachSession(nil)
                 if s.showExecutionTime {
                     let ms = Int(Date().timeIntervalSince(start) * 1000)
                     console.append(ok ? .success : .err, ok ? "✓ Finished in \(ms) ms" : "✗ Stopped after \(ms) ms")
                 }
             }
         }
+        let stdin = config.input.isEmpty ? console.stdin : config.input
         if runner == "js" {
-            runJavaScript(doc.text, stdin: console.stdin, strict: s.jsStrictMode, console: console, done: finish)
-        } else {
-            runRemote(code: doc.text, fileName: doc.name, language: runner, stdin: console.stdin, console: console, done: finish)
+            runJavaScript(code, stdin: stdin, strict: s.jsStrictMode, console: console, done: finish)
+            return
         }
+        var files: [[String: Any]] = [["name": project.flatMap { relative(target, in: $0) } ?? name, "content": code]]
+        if let project, config.includeProjectFiles {
+            files += projectFiles(project, excluding: target)
+        }
+        if s.interactiveRuns {
+            runSession(files: files, language: runner, args: args, stdin: stdin, keepNames: project != nil, console: console, done: finish)
+        } else {
+            runRemote(files: files, language: runner, args: args, stdin: stdin, keepNames: project != nil, console: console, done: finish)
+        }
+    }
+
+    @discardableResult
+    private static func openDocument(_ url: URL) -> EditorDocument? {
+        EditorState.current?.documents.values.first { $0.url.standardizedFileURL == url.standardizedFileURL }
+    }
+
+    private static func relative(_ url: URL, in root: URL) -> String? {
+        let r = root.standardizedFileURL.resolvingSymlinksInPath().path, p = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return p.hasPrefix(r + "/") ? String(p.dropFirst(r.count + 1)) : nil
+    }
+
+    /// The project's other text files (unsaved edits included), so imports between files work.
+    private static func projectFiles(_ project: URL, excluding: URL) -> [[String: Any]] {
+        var out: [[String: Any]] = []
+        var total = 0
+        for (path, url) in ProjectFiles.textFiles(in: project, limit: 300) where url.standardizedFileURL != excluding.standardizedFileURL {
+            if path.hasPrefix(".mango/") { continue }
+            let text = openDocument(url)?.text ?? (try? String(contentsOf: url, encoding: .utf8))
+            guard let text else { continue }
+            total += text.utf8.count
+            if total > 4_000_000 { break }
+            out.append(["name": path, "content": text])
+        }
+        return out
     }
 
     // MARK: JavaScript (on device)
@@ -228,22 +338,20 @@ enum RunService {
     }
 
     static func runRemote(code: String, fileName: String, language: String, stdin: String, console: ConsoleModel, done: @escaping (Bool) -> Void) {
+        runRemote(files: [["name": fileName, "content": code]], language: language, args: [], stdin: stdin, keepNames: false, console: console, done: done)
+    }
+
+    static func runRemote(files: [[String: Any]], language: String, args: [String], stdin: String, keepNames: Bool,
+                          console: ConsoleModel, done: @escaping (Bool) -> Void) {
         let s = AppSettings.shared
         guard let url = runnerEndpoint(s.runnerURL, path: "execute") else {
-            console.append(.err, "No runner server set.")
-            console.append(.info, "JavaScript runs on your phone, but \(language) needs a runner server. Add one in Settings › Run (any Piston-compatible server works).")
-            done(false)
-            return
+            noRunner(language, console); done(false); return
         }
         var req = URLRequest(url: url, timeoutInterval: max(5, s.runnerTimeout))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         authorize(&req)
-        let body: [String: Any] = [
-            "language": language, "version": "*",
-            "files": [["name": fileName, "content": code]],
-            "stdin": stdin
-        ]
+        let body: [String: Any] = ["language": language, "version": "*", "files": files, "stdin": stdin, "args": args, "keep_names": keepNames]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         URLSession.shared.dataTask(with: req) { data, resp, error in
             if let error {
@@ -258,12 +366,7 @@ enum RunService {
                 console.append(.err, message)
                 done(false); return
             }
-            var ok = true
-            if let compile = json["compile"] as? [String: Any] {
-                if let out = compile["stdout"] as? String, !out.isEmpty { console.append(.out, out.trimmingCharacters(in: .newlines)) }
-                if let err = compile["stderr"] as? String, !err.isEmpty { console.append(.err, err.trimmingCharacters(in: .newlines)); ok = false }
-                if let code = compile["code"] as? Int, code != 0 { ok = false }
-            }
+            var ok = showCompile(json["compile"], console)
             if let run = json["run"] as? [String: Any] {
                 if let out = run["stdout"] as? String, !out.isEmpty { console.append(.out, out.trimmingCharacters(in: .newlines)) }
                 if let err = run["stderr"] as? String, !err.isEmpty { console.append(.err, err.trimmingCharacters(in: .newlines)) }
@@ -272,6 +375,77 @@ enum RunService {
             }
             done(ok)
         }.resume()
+    }
+
+    private static func noRunner(_ language: String, _ console: ConsoleModel) {
+        console.append(.err, "No runner server set.")
+        console.append(.info, "JavaScript runs on your phone, but \(language) needs a runner server. Add one in Settings › Run & Console (any Piston-compatible server works).")
+    }
+
+    /// Prints compiler output. Returns false if compiling failed.
+    @discardableResult
+    private static func showCompile(_ any: Any?, _ console: ConsoleModel) -> Bool {
+        guard let compile = any as? [String: Any] else { return true }
+        var ok = true
+        if let out = compile["stdout"] as? String, !out.isEmpty { console.append(.out, out.trimmingCharacters(in: .newlines)) }
+        if let code = compile["code"] as? Int, code != 0 { ok = false }
+        if let err = compile["stderr"] as? String, !err.isEmpty { console.append(ok ? .info : .err, err.trimmingCharacters(in: .newlines)) }
+        return ok
+    }
+
+    // MARK: Interactive runs (type into the program while it runs)
+
+    static func sessionPost(_ id: String, _ action: String, _ body: [String: Any]) {
+        guard let req = RunnerAPI.request("sessions/\(id)/\(action)", body: body, timeout: 15) else { return }
+        URLSession.shared.dataTask(with: req).resume()
+    }
+
+    static func runSession(files: [[String: Any]], language: String, args: [String], stdin: String, keepNames: Bool,
+                           console: ConsoleModel, done: @escaping (Bool) -> Void) {
+        guard var start = RunnerAPI.request("sessions", body: ["language": language, "files": files, "args": args, "keep_names": keepNames],
+                                            timeout: max(30, AppSettings.shared.runnerTimeout + 60)) else {
+            noRunner(language, console); done(false); return
+        }
+        start.timeoutInterval = 120
+        Task {
+            do {
+                let (status, json) = try await RunnerAPI.json(start)
+                if status == 404 {
+                    // Older runner without interactive runs: run it the classic way.
+                    runRemote(files: files, language: language, args: args, stdin: stdin, keepNames: keepNames, console: console, done: done)
+                    return
+                }
+                if let message = json["message"] as? String { console.append(.err, message); done(false); return }
+                let compiled = showCompile(json["compile"], console)
+                guard compiled, let id = json["id"] as? String else { done(false); return }
+                console.attachSession(id)
+                if !stdin.isEmpty { sessionPost(id, "input", ["data": stdin.hasSuffix("\n") ? stdin : stdin + "\n"]) }
+                guard var streamReq = RunnerAPI.request("sessions/\(id)/stream", method: "GET", timeout: 120) else { done(false); return }
+                streamReq.httpBody = nil
+                let (bytes, resp) = try await URLSession.shared.bytes(for: streamReq)
+                guard (resp as? HTTPURLResponse)?.statusCode == 200 else { console.append(.err, "The runner lost the program."); done(false); return }
+                var exitOK: Bool?
+                for try await line in bytes.lines {
+                    guard let data = line.data(using: .utf8), let ev = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
+                    switch ev["t"] as? String {
+                    case "out": console.write(.out, ev["data"] as? String ?? "")
+                    case "err": console.write(.err, ev["data"] as? String ?? "")
+                    case "exit":
+                        let code = (ev["code"] as? NSNumber)?.intValue
+                        if let code, code != 0 { console.append(.info, "Exit code \(code)") }
+                        if let sig = ev["signal"] as? String, !sig.isEmpty { console.append(.info, "Stopped by \(sig)") }
+                        exitOK = code == 0
+                    default: break
+                    }
+                    if exitOK != nil { break }
+                }
+                if exitOK == nil { console.append(.err, "Lost the connection to the running program.") }
+                done(exitOK ?? false)
+            } catch {
+                console.append(.err, "Couldn't reach the runner: \(error.localizedDescription)")
+                done(false)
+            }
+        }
     }
 
     static func authorize(_ req: inout URLRequest) {

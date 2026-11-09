@@ -38,6 +38,8 @@ struct CodeEditorView: UIViewRepresentable {
         document.addRemoteListener(c.listenerID) { [weak v] edits, old, new in v?.applyRemoteEdits(edits, old: old, new: new) }
         document.addPeerListener(c.listenerID) { [weak v] peers in v?.showPeers(peers) }
         if !document.peers.isEmpty { v.showPeers(document.peers) }
+        document.addDiagnosticsListener(c.listenerID) { [weak v] list in v?.showDiagnostics(list) }
+        if !document.diagnostics.isEmpty { v.showDiagnostics(document.diagnostics) }
         editor.register(v.textView, pane: paneID)
         let doc = document
         DispatchQueue.main.async {
