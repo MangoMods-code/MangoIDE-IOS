@@ -33,6 +33,42 @@ final class EditorDocument: ObservableObject, Identifiable {
 
     var name: String { url.lastPathComponent }
 
+    // MARK: Live sessions
+
+    /// Set while this file is part of a live session: told about every change made on this device (old, new).
+    var onLocalChange: ((String, String) -> Void)?
+    /// Set while this file is part of a live session: told where your cursor is.
+    var onLocalSelection: ((NSRange) -> Void)?
+    private var remoteListeners: [UUID: (_ edits: [(NSRange, String)], _ old: String, _ new: String) -> Void] = [:]
+    private var peerListeners: [UUID: ([PeerCaret]) -> Void] = [:]
+    /// Other people's cursors in this file.
+    private(set) var peers: [PeerCaret] = []
+
+    func addRemoteListener(_ id: UUID, _ cb: @escaping (_ edits: [(NSRange, String)], _ old: String, _ new: String) -> Void) { remoteListeners[id] = cb }
+    func addPeerListener(_ id: UUID, _ cb: @escaping ([PeerCaret]) -> Void) { peerListeners[id] = cb }
+
+    /// Someone else's edit: every open view applies just that change, keeping your cursor where it was.
+    func applyRemote(_ edits: [(NSRange, String)], newText: String) {
+        let old = text
+        text = newText
+        if !isDirty { isDirty = true }
+        scheduleDraft()
+        for cb in remoteListeners.values { cb(edits, old, newText) }
+    }
+
+    /// The live session's copy wins (after a resync). Doesn't count as your edit.
+    func replaceFromRemote(_ newText: String) {
+        guard newText != text else { return }
+        text = newText
+        if !isDirty { isDirty = true }
+        contentVersion += 1
+    }
+
+    func setPeers(_ p: [PeerCaret]) {
+        peers = p
+        for cb in peerListeners.values { cb(p) }
+    }
+
     init(url: URL) {
         self.url = url
         load()
@@ -86,6 +122,8 @@ final class EditorDocument: ObservableObject, Identifiable {
         }
         do {
             let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            let before = text
+            defer { if !isBinary, before != text { onLocalChange?(before, text) } }
             if data.prefix(8000).contains(0) {
                 isBinary = true
                 viewer = .hex
@@ -108,11 +146,13 @@ final class EditorDocument: ObservableObject, Identifiable {
     // MARK: Live sync between editors showing this file
 
     func addListener(_ id: UUID, _ onChange: @escaping (String) -> Void) { listeners[id] = onChange }
-    func removeListener(_ id: UUID) { listeners[id] = nil }
+    func removeListener(_ id: UUID) { listeners[id] = nil; remoteListeners[id] = nil; peerListeners[id] = nil }
 
     /// Called by a text view on every edit. `source` is that view's id so it isn't told about its own change.
     func userEdited(_ newText: String, source: UUID) {
+        let old = text
         text = newText
+        onLocalChange?(old, newText)
         lastEditor = source
         if !isDirty { isDirty = true }
         scheduleAutosave()
@@ -130,7 +170,9 @@ final class EditorDocument: ObservableObject, Identifiable {
 
     /// Replace everything from outside a text view. Every open view picks it up.
     func replaceAll(_ newText: String, markDirty: Bool = true) {
+        let old = text
         text = newText
+        onLocalChange?(old, newText)
         if markDirty { isDirty = true; scheduleAutosave(); scheduleDraft() }
         contentVersion += 1
     }
@@ -164,7 +206,7 @@ final class EditorDocument: ObservableObject, Identifiable {
                 if trimmed != out { out = trimmed; changed = true }
             }
             if s.insertFinalNewline && !out.isEmpty && !out.hasSuffix("\n") { out += "\n"; changed = true }
-            if changed { text = out; contentVersion += 1 }
+            if changed { let old = text; text = out; contentVersion += 1; onLocalChange?(old, out) }
         }
         let target = url
         isDirty = false
@@ -205,4 +247,14 @@ final class EditorDocument: ObservableObject, Identifiable {
         do { try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false; clearDraft() }
         catch { saveError = "Couldn't save: \(error.localizedDescription)" }
     }
+}
+
+
+/// Another person's cursor in a live session.
+struct PeerCaret: Equatable {
+    let id: String
+    let name: String
+    let color: String
+    let location: Int
+    let length: Int
 }

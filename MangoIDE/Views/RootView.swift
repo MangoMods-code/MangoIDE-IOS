@@ -10,6 +10,7 @@ struct RootView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var agent: AgentSession
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var live = LiveSession.shared
 
     var theme: EditorTheme { extensions.theme(id: settings.effectiveThemeID) }
 
@@ -46,6 +47,9 @@ struct RootView: View {
         .sheet(item: $router.sheet) { sheet in sheetView(sheet) }
         .sheet(item: $console.preview) { item in PreviewSheet(item: item) }
         .modifier(RootDialogs(theme: theme))
+        .alert("Live Session", isPresented: Binding(get: { live.message != nil && router.sheet == nil }, set: { if !$0 { live.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(live.message ?? "") }
         .onChange(of: editor.explorerRequest) { _ in
             guard let project = editor.lastProject else { return }
             withAnimation(.easeOut(duration: 0.2)) { router.sidebarOpen = true }
@@ -129,6 +133,9 @@ struct RootView: View {
             case .projects: ProjectsSheet()
             case .welcome: WelcomeSignInView()
             case .github: GitHubView()
+            case .collab: CollabView()
+            case .openShare(let code): OpenShareSheet(code: code)
+            case .joinLive(let code): JoinLiveSheet(code: code)
             case .agent:
                 if #available(iOS 16.4, *) {
                     AgentView()
@@ -156,6 +163,26 @@ struct RootView: View {
 }
 
 // MARK: - Top bar
+
+/// Shows who's in the live session; tap to manage it.
+struct LiveIndicator: View {
+    @ObservedObject var live = LiveSession.shared
+    @EnvironmentObject var router: Router
+    var body: some View {
+        if live.isActive {
+            Button { router.show(.collab) } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "person.2.fill")
+                    Text("\(live.people.count)").font(.caption.bold()).monospacedDigit()
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .foregroundStyle(.white)
+                .background(live.status == .live ? Color.green : Color.orange, in: Capsule())
+            }
+            .accessibilityLabel("Live session, \(live.people.count) people")
+        }
+    }
+}
 
 struct TopBar: View {
     let wide: Bool
@@ -185,6 +212,7 @@ struct TopBar: View {
                 barButton("magnifyingglass") { editor.showFind(replace: true) }
                     .disabled(editor.activeDocument == nil)
             }
+            LiveIndicator()
             barButton("sparkles") { router.show(.agent) }
             barButton("terminal") { console.isVisible.toggle() }
             moreMenu
@@ -207,6 +235,7 @@ struct TopBar: View {
                 Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
                 Button { router.show(.importArchive) } label: { Label("Import ZIP / RAR…", systemImage: "doc.zipper") }
                 Button { router.show(.github) } label: { Label("GitHub…", systemImage: "arrow.triangle.branch") }
+                Button { router.show(.collab) } label: { Label("Share & Collaborate…", systemImage: "person.2") }
             }
             Section {
                 Button { router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects) } label: {

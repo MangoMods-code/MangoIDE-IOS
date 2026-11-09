@@ -34,6 +34,25 @@ struct Avatar: View {
 struct AccountView: View {
     @ObservedObject var account = AccountManager.shared
     @State private var confirmEverywhere = false
+    @State private var sessions: [Device] = []
+
+    struct Device { let id: Int; let device: String; let lastUsed: String; let current: Bool }
+
+    private func deviceName(_ ua: String) -> String {
+        if ua.contains("iPad") { return "iPad" }
+        if ua.contains("iPhone") { return "iPhone" }
+        if ua.contains("Mac") { return "Mac" }
+        return ua.isEmpty ? "Unknown device" : String(ua.prefix(40))
+    }
+
+    private func loadSessions() {
+        account.request("me/sessions") { r in
+            guard case .success(let (data, http)) = r, http.statusCode == 200,
+                  let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return }
+            sessions = rows.map { Device(id: ($0["id"] as? NSNumber)?.intValue ?? 0, device: $0["device"] as? String ?? "",
+                                         lastUsed: $0["last_used"] as? String ?? "", current: $0["current"] as? Bool ?? false) }
+        }
+    }
 
     var body: some View {
         Form {
@@ -52,41 +71,23 @@ struct AccountView: View {
                 }
 
                 Section {
-                    if p.pro {
-                        LabeledContent("Status", value: p.proStatus.capitalized)
-                        if p.proStatus != "owner pass" {
-                            Button("Manage Subscription") { account.manageBilling() }
-                        }
-                    } else {
-                        Button { account.buyPro() } label: {
-                            Label(String(format: "Get Pro · $%.2f/month", p.proPrice), systemImage: "star.fill")
-                        }
-                        .disabled(!p.payments || account.busy)
+                    NavigationLink { ProView() } label: {
+                        LabeledContent("MangoIDE Pro", value: p.pro ? (p.proStatus == "owner pass" ? "Owner Pass" : "Active") : "Free")
                     }
-                } header: { Text("Pro") } footer: {
-                    Text("Pro will unlock cloud sync and backup, GitHub push/pull/commits, cloning other people's repos, and sharing. Most of MangoIDE stays free.")
-                }
+                    NavigationLink { CreditView() } label: {
+                        LabeledContent("AI Credit", value: String(format: "$%.2f", p.credits))
+                    }
+                } header: { Text("Plan") }
 
                 Section {
-                    LabeledContent("Balance", value: String(format: "$%.2f", p.credits))
-                    HStack {
-                        ForEach(p.topups, id: \.self) { amount in
-                            Button(String(format: "+$%.0f", amount)) { account.topUp(dollars: amount) }
-                                .buttonStyle(.bordered)
-                                .frame(maxWidth: .infinity)
+                    if sessions.isEmpty { Text("Loading…").foregroundStyle(.secondary) }
+                    ForEach(sessions, id: \.id) { d in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(deviceName(d.device) + (d.current ? " (this device)" : "")).lineLimit(1)
+                            Text("Last used \(CloudSync.shortDate(d.lastUsed))").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    .disabled(!p.payments || account.busy)
-                    if p.credits > 0 || !p.topups.isEmpty, p.payments {
-                        Button("Receipts & Refunds") { account.manageBilling() }.font(.footnote)
-                    }
-                } header: { Text("AI Credit") } footer: {
-                    Text("Prepaid, so you're never charged after the fact. The agent uses it when you haven't added your own Anthropic key. When it runs out, the agent just stops.")
-                }
-
-                if !p.payments {
-                    Section { Label("Payments aren't switched on yet.", systemImage: "exclamationmark.triangle").foregroundStyle(.secondary) }
-                }
+                } header: { Text("Signed-In Devices") }
 
                 Section {
                     Button("Sign Out") { account.signOut(everywhere: false) }
@@ -97,7 +98,7 @@ struct AccountView: View {
             } else {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Sign in to get Pro and AI credit, and later sync your projects. Everything that's free now stays free.")
+                        Text("Sign in to clone your GitHub repos, join live sessions, and get Pro or AI credit if you want them. Everything that's free stays free.")
                             .foregroundStyle(.secondary)
                         Button {
                             account.signIn()
@@ -120,8 +121,8 @@ struct AccountView: View {
             }
         }
         .navigationTitle("Account")
-        .onAppear { account.refresh() }
-        .refreshable { account.refresh() }
+        .onAppear { account.refresh(); if account.isSignedIn { loadSessions() } }
+        .refreshable { account.refresh(); loadSessions() }
         .alert("Account", isPresented: Binding(get: { account.message != nil }, set: { if !$0 { account.message = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(account.message ?? "") }

@@ -78,8 +78,19 @@ actor CloudEngine {
     // MARK: Network
 
     private func call(_ path: String, query: [String: String] = [:], method: String = "GET", body: Any? = nil,
-                      timeout: TimeInterval = 120) async throws -> [String: Any] {
-        guard var req = GitHub.request(path, query: query, method: method, body: body) else {
+                      timeout: TimeInterval = 120, signedIn: Bool = true) async throws -> [String: Any] {
+        var request = GitHub.request(path, query: query, method: method, body: body)
+        if request == nil && !signedIn, var comps = URLComponents(url: AccountManager.server.appendingPathComponent(path), resolvingAgainstBaseURL: false) {
+            // Public endpoints (opening a shared link) work without an account.
+            if !query.isEmpty { comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } }
+            if let url = comps.url {
+                var r = URLRequest(url: url)
+                r.httpMethod = method
+                if let body { r.setValue("application/json", forHTTPHeaderField: "Content-Type"); r.httpBody = try? JSONSerialization.data(withJSONObject: body) }
+                request = r
+            }
+        }
+        guard var req = request else {
             throw CloudError.message("Sign in with GitHub first (Settings › Account).")
         }
         req.timeoutInterval = timeout
@@ -132,7 +143,7 @@ actor CloudEngine {
     }
 
     /// Downloads the given files' contents, batching so no single reply is huge.
-    private func fetch(_ wanted: [String: Int]) async throws -> [String: Data] {
+    private func fetch(_ wanted: [String: Int], endpoint: String = "cloud/download", extra: [String: Any] = [:], signedIn: Bool = true) async throws -> [String: Data] {
         var out: [String: Data] = [:]
         var remaining = wanted.sorted { $0.value < $1.value }.map(\.key)
         while !remaining.isEmpty {
@@ -142,7 +153,10 @@ actor CloudEngine {
                 if !batch.isEmpty && (bytes + s > 20_000_000 || batch.count >= 500) { break }
                 batch.append(sha); bytes += s
             }
-            let obj = try await call("cloud/download", method: "POST", body: ["shas": batch], timeout: 300)
+            var body = extra
+            body["shas"] = batch
+            body["first"] = out.isEmpty
+            let obj = try await call(endpoint, method: "POST", body: body, timeout: 300, signedIn: signedIn)
             let got = obj["blobs"] as? [String: String] ?? [:]
             if got.isEmpty { throw CloudError.message("Some files are missing from the cloud. Try a backup instead.") }
             for (sha, b64) in got {
@@ -509,5 +523,81 @@ final class CloudSync: ObservableObject {
         out.dateStyle = .short
         out.timeStyle = .short
         return out.string(from: d)
+    }
+}
+
+
+// MARK: - Share a copy (link)
+
+struct SharedLink: Decodable, Identifiable, Hashable {
+    let code: String
+    let name: String
+    let files: Int
+    let size: Double
+    let downloads: Int
+    let createdAt: String
+    let expiresAt: String
+    let link: String
+    var id: String { code }
+}
+
+struct ShareInfo {
+    let code: String
+    let name: String
+    let owner: String
+    let files: Int
+    let size: Double
+    let expiresAt: String
+    fileprivate let manifest: [String: CloudEngine.Entry]
+}
+
+extension CloudEngine {
+    /// Uploads a project (Pro) and makes a link anyone can open. Private notes in .mango aren't included.
+    func share(name: String, folder: URL, days: Int) async throws -> (code: String, link: String) {
+        let local = scan(folder)
+        let files = local.files.filter { !$0.key.hasPrefix(".mango/") }
+        guard !files.isEmpty else { throw CloudError.message("That project has no files to share.") }
+        _ = try await upload(files, urls: local.urls)
+        let manifest = files.mapValues { [$0.sha, $0.size] as [Any] }
+        let obj = try await call("share/create", method: "POST", body: ["name": name, "manifest": manifest, "days": days], timeout: 180)
+        guard let code = obj["code"] as? String, let link = obj["link"] as? String else { throw CloudError.message("The server didn't make the link.") }
+        return (code, link)
+    }
+
+    func shareInfo(_ code: String) async throws -> ShareInfo {
+        let obj = try await call("share/info", query: ["code": code.uppercased()], signedIn: false)
+        var files: [String: Entry] = [:]
+        for (p, v) in obj["manifest"] as? [String: [Any]] ?? [:] {
+            if v.count >= 2, let sha = v[0] as? String, let size = (v[1] as? NSNumber)?.intValue { files[p] = Entry(sha: sha, size: size) }
+        }
+        return ShareInfo(code: obj["code"] as? String ?? code, name: obj["name"] as? String ?? "Project", owner: obj["owner"] as? String ?? "",
+                         files: (obj["files"] as? NSNumber)?.intValue ?? files.count, size: (obj["size"] as? NSNumber)?.doubleValue ?? 0,
+                         expiresAt: obj["expiresAt"] as? String ?? "", manifest: files)
+    }
+
+    /// Downloads a shared project into a new folder.
+    func importShare(_ info: ShareInfo, into parent: URL) async throws -> URL {
+        var want: [String: Int] = [:]
+        for e in info.manifest.values { want[e.sha] = e.size }
+        let blobs = try await fetch(want, endpoint: "share/download", extra: ["code": info.code], signedIn: false)
+        let dest = Workspace.shared.uniqueURL(in: parent, name: info.name)
+        try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        for (path, e) in info.manifest {
+            guard let d = blobs[e.sha] else { continue }
+            let url = dest.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try d.write(to: url, options: .atomic)
+        }
+        return dest
+    }
+
+    func myShares() async throws -> [SharedLink] {
+        let obj = try await call("share/mine")
+        let data = try JSONSerialization.data(withJSONObject: obj["shares"] ?? [])
+        return try JSONDecoder().decode([SharedLink].self, from: data)
+    }
+
+    func revokeShare(_ code: String) async throws {
+        _ = try await call("share/revoke", method: "POST", body: ["code": code])
     }
 }

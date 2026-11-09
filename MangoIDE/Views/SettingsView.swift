@@ -5,38 +5,96 @@ struct SettingsView: View {
     @EnvironmentObject var extensions: ExtensionManager
     @Environment(\.dismiss) var dismiss
     @State private var confirmReset = false
+    @State private var search = ""
+
+    /// Every settings page, so search can find them by name or by what's inside.
+    private struct Page: Identifiable {
+        let title: String
+        let symbol: String
+        let color: Color
+        let keywords: String
+        let destination: () -> AnyView
+        var id: String { title }
+    }
+
+    private struct Group: Identifiable {
+        let title: String
+        let pages: [Page]
+        var id: String { title }
+    }
+
+    private var groups: [Group] {
+        [
+            Group(title: "Pro & Purchases", pages: [
+                Page(title: "MangoIDE Pro", symbol: "star.fill", color: .orange, keywords: "subscription upgrade billing stripe pay price plan manage cancel") { AnyView(ProView()) },
+                Page(title: "AI Credit", symbol: "creditcard.fill", color: .green, keywords: "top up balance agent money stripe payment receipts refund") { AnyView(CreditView()) },
+            ]),
+            Group(title: "Cloud & Collaboration", pages: [
+                Page(title: "Cloud Sync & Backup", symbol: "icloud.fill", color: .cyan, keywords: "sync backup restore devices storage") { AnyView(CloudView()) },
+                Page(title: "GitHub", symbol: "arrow.triangle.branch", color: .black, keywords: "git clone push pull commit repo publish branch") { AnyView(GitHubSettings()) },
+                Page(title: "Sharing & Live Sessions", symbol: "person.2.fill", color: .mint, keywords: "share link collaborate live session invite cursors together") { AnyView(SharingSettings()) },
+            ]),
+            Group(title: "Editing", pages: [
+                Page(title: "Editor", symbol: "character.cursor.ibeam", color: .blue, keywords: "font size line numbers wrap indentation tabs spaces autosave save trim") { AnyView(EditorSettings()) },
+                Page(title: "Keyboard", symbol: "keyboard", color: .gray, keywords: "brackets autocomplete key bar accessory smart") { AnyView(KeyboardSettings()) },
+                Page(title: "Themes", symbol: "paintpalette.fill", color: .pink, keywords: "color dark light holiday accent appearance") { AnyView(AppearanceSettings()) },
+                Page(title: "Backgrounds & Effects", symbol: "photo.fill", color: .purple, keywords: "wallpaper live photo gif video snow effects seasonal") { AnyView(BackgroundSettings()) },
+                Page(title: "Layout", symbol: "rectangle.3.group", color: .indigo, keywords: "status bar tabs split sidebar console file icons") { AnyView(LayoutSettings()) },
+            ]),
+            Group(title: "Workspace", pages: [
+                Page(title: "Files & Projects", symbol: "folder.fill", color: .orange, keywords: "projects folder new files templates") { AnyView(FileSettings()) },
+                Page(title: "Run & Console", symbol: "play.rectangle.fill", color: .green, keywords: "runner server key languages execute console") { AnyView(RunSettings()) },
+                Page(title: "Agent", symbol: "sparkles", color: .indigo, keywords: "ai claude anthropic key model memory approvals cloud workspace") { AnyView(AgentSettings()) },
+                Page(title: "Extensions", symbol: "puzzlepiece.extension.fill", color: .purple, keywords: "install themes languages snippets") { AnyView(ExtensionsView()) },
+            ]),
+            Group(title: "App", pages: [
+                Page(title: "General", symbol: "gearshape.fill", color: .gray, keywords: "haptics screen awake welcome") { AnyView(GeneralSettings()) },
+                Page(title: "Privacy & Security", symbol: "lock.shield.fill", color: .blue, keywords: "keychain keys sign out devices sessions password") { AnyView(PrivacySettings()) },
+                Page(title: "Storage", symbol: "internaldrive.fill", color: .gray, keywords: "space clear cache drafts temporary size") { AnyView(StorageSettings()) },
+            ]),
+        ]
+    }
+
+    private var results: [Page] {
+        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
+        return groups.flatMap(\.pages).filter { ($0.title + " " + $0.keywords).lowercased().contains(q) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    NavigationLink { AccountView() } label: { AccountRow() }
-                    NavigationLink { CloudView() } label: { row("Cloud Sync & Backup", "icloud", .cyan) }
-                }
-                Section {
-                    NavigationLink { EditorSettings() } label: { row("Editor", "character.cursor.ibeam", .blue) }
-                    NavigationLink { KeyboardSettings() } label: { row("Keyboard", "keyboard", .gray) }
-                    NavigationLink { AppearanceSettings() } label: { row("Appearance & Themes", "paintpalette", .pink) }
-                    NavigationLink { FileSettings() } label: { row("Files & Projects", "folder", .orange) }
-                    NavigationLink { RunSettings() } label: { row("Run & Console", "play.rectangle", .green) }
-                    NavigationLink { AgentSettings() } label: { row("Agent", "sparkles", .indigo) }
-                    NavigationLink { ExtensionsView() } label: { row("Extensions", "puzzlepiece.extension", .purple) }
-                    NavigationLink { GeneralSettings() } label: { row("General", "gearshape", .gray) }
-                }
-                Section("About") {
-                    LabeledContent("Version", value: Bundle.main.appVersion)
-                    LabeledContent("Build", value: Bundle.main.appBuild)
-                    LabeledContent("Languages", value: "\(extensions.allLanguages.count)")
-                    LabeledContent("Themes", value: "\(extensions.allThemes.count)")
-                    NavigationLink { DiagnosticsView() } label: { Label("File Access Diagnostics", systemImage: "stethoscope") }
-                }
-                Section {
-                    Button("Reset All Settings", role: .destructive) { confirmReset = true }
-                } footer: {
-                    Text("Your files, linked folders and extensions are kept.")
+                if search.isEmpty {
+                    Section {
+                        NavigationLink { AccountView() } label: { AccountRow() }
+                    }
+                    ForEach(groups) { g in
+                        Section(g.title) {
+                            ForEach(g.pages) { page in
+                                NavigationLink { page.destination() } label: { row(page.title, page.symbol, page.color) }
+                            }
+                        }
+                    }
+                    Section("About") {
+                        LabeledContent("Version", value: Bundle.main.appVersion)
+                        LabeledContent("Build", value: Bundle.main.appBuild)
+                        LabeledContent("Languages", value: "\(extensions.allLanguages.count)")
+                        LabeledContent("Themes", value: "\(extensions.allThemes.count)")
+                        NavigationLink { DiagnosticsView() } label: { Label("File Access Diagnostics", systemImage: "stethoscope") }
+                    }
+                    Section {
+                        Button("Reset All Settings", role: .destructive) { confirmReset = true }
+                    } footer: {
+                        Text("Your files, account, linked folders and extensions are kept.")
+                    }
+                } else {
+                    if results.isEmpty { Text("No settings match “\(search)”.").foregroundStyle(.secondary) }
+                    ForEach(results) { page in
+                        NavigationLink { page.destination() } label: { row(page.title, page.symbol, page.color) }
+                    }
                 }
             }
             .navigationTitle("Settings")
+            .searchable(text: $search, prompt: "Search settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Reset every setting to its default?", isPresented: $confirmReset, titleVisibility: .visible) {
                 Button("Reset", role: .destructive) { settings.resetAll() }
@@ -57,7 +115,7 @@ struct SettingsView: View {
     }
 }
 
-private struct Stepper2: View {
+struct Stepper2: View {
     let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -158,33 +216,8 @@ struct AppearanceSettings: View {
             Section {
                 Toggle("Theme Styles Whole App", isOn: $s.themeControlsApp)
                 Toggle("Automatic Holiday Themes", isOn: $s.autoHolidayThemes)
-                Toggle("Seasonal Effects", isOn: $s.showEffects)
-                if s.showEffects {
-                    Stepper2(title: "Effect Amount", value: $s.effectIntensity, range: 0.25...2.5, step: 0.25, format: { String(format: "%.0f%%", $0 * 100) })
-                }
             } footer: {
-                Text("Whole-app themes also color the bars, sidebar, tabs, console and font style, and switch light/dark for you. Automatic holiday themes switch to a holiday look on those days\(holidayNow.map { " (today: \($0))" } ?? "") and back afterwards.")
-            }
-
-            Section {
-                if s.backgroundActive {
-                    Picker("Fit", selection: $s.backgroundFit) {
-                        Text("Fill Screen").tag("fill"); Text("Fit Whole Image").tag("fit")
-                    }
-                    Stepper2(title: "Show Through Editor", value: $s.backgroundStrength, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
-                    Stepper2(title: "Darken", value: $s.backgroundDim, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
-                    Stepper2(title: "Frosted Glass", value: $s.backgroundBlur, range: 0...1, step: 0.1, format: { String(format: "%.0f%%", $0 * 100) })
-                    if s.backgroundKind != "image" {
-                        Toggle("Animate", isOn: $s.animateBackground)
-                    }
-                }
-                Button { pickPhotos() } label: { Label("Choose from Photos…", systemImage: "photo.on.rectangle") }
-                Button { pickFiles() } label: { Label("Choose from Files…", systemImage: "folder") }
-                if s.backgroundActive {
-                    Button(role: .destructive) { BackgroundStore.remove() } label: { Label("Remove Background", systemImage: "xmark.circle") }
-                }
-            } header: { Text("Background") } footer: {
-                Text("Use a photo, GIF, video or Live Photo (it plays as a loop, muted). It pauses whenever MangoIDE isn't on screen.")
+                Text("Whole-app themes also color the bars, sidebar, tabs, console and font style, and switch light/dark for you. Seasonal effects (snow and more) are in Backgrounds & Effects. Automatic holiday themes switch to a holiday look on those days\(holidayNow.map { " (today: \($0))" } ?? "") and back afterwards.")
             }
 
             Section("App") {
@@ -210,24 +243,130 @@ struct AppearanceSettings: View {
                 }
             }
 
-            Section("Layout") {
-                Toggle("Status Bar", isOn: $s.showStatusBar)
-                Toggle("File Icons", isOn: $s.showFileIcons)
-                Toggle("Compact Tabs", isOn: $s.compactTabs)
-                Toggle("Close Buttons on Tabs", isOn: $s.showTabCloseButtons)
-                Picker("Split Direction", selection: $s.splitOrientation) {
-                    Text("Automatic").tag("auto"); Text("Side by Side").tag("horizontal"); Text("Top and Bottom").tag("vertical")
-                }
-                Stepper2(title: "Sidebar Width (iPad)", value: $s.sidebarWidth, range: 200...420, step: 20)
-                Stepper2(title: "Console Text Size", value: $s.consoleFontSize, range: 9...22, step: 1)
-            }
         }
-        .navigationTitle("Appearance & Themes")
+        .navigationTitle("Themes")
     }
 
     private var extensionGroup: [String] {
         let known = Set(ThemeLibrary.groups)
         return Array(Set(extensions.allThemes.map { $0.group }).subtracting(known)).sorted()
+    }
+}
+
+struct GeneralSettings: View {
+    @EnvironmentObject var s: AppSettings
+    var body: some View {
+        Form {
+            Toggle("Haptic Feedback", isOn: $s.hapticFeedback)
+            Toggle("Keep Screen Awake", isOn: $s.keepScreenAwake)
+            Toggle("Show Welcome File When Nothing Is Open", isOn: $s.showWelcome)
+            Toggle("Enable Extensions", isOn: $s.extensionsEnabled)
+        }
+        .navigationTitle("General")
+    }
+}
+
+
+struct AgentSettings: View {
+    @EnvironmentObject var s: AppSettings
+    @State private var keyDraft = ""
+    @State private var editingKey = false
+
+    private var maskedKey: String {
+        let k = s.agentAPIKey
+        guard k.count > 12 else { return k.isEmpty ? "Not set" : "Saved" }
+        return String(k.prefix(7)) + "…" + String(k.suffix(4))
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                if editingKey || s.agentAPIKey.isEmpty {
+                    SecureField("sk-ant-…", text: $keyDraft)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    HStack {
+                        Button("Save Key") {
+                            s.agentAPIKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                            keyDraft = ""; editingKey = false
+                        }
+                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if editingKey { Spacer(); Button("Cancel") { keyDraft = ""; editingKey = false } }
+                    }
+                } else {
+                    LabeledContent("API Key", value: maskedKey)
+                    Button("Change Key") { editingKey = true }
+                    Button("Remove Key", role: .destructive) { s.agentAPIKey = "" }
+                }
+            } header: { Text("Anthropic API Key") } footer: {
+                Text("Stored only in this iPhone's Keychain. It's not in the app, its settings or the IPA, and it's never sent to your server: the agent talks to Anthropic directly. Get a key at console.anthropic.com.")
+            }
+            Section {
+                Picker("Model", selection: $s.agentModel) {
+                    ForEach(AgentSession.models, id: \.id) { m in Text(m.name).tag(m.id) }
+                }
+            } footer: { Text("Haiku is cheapest (about 2¢ for a small job), Sonnet is the best value (about 25¢), Opus is strongest (about 50¢).") }
+            Section {
+                Toggle("Cloud Workspace", isOn: $s.agentCloudWorkspace)
+            } header: { Text("Beta") } footer: {
+                Text("Gives the agent a Linux copy of your project on your runner server, so it can install packages, run whole projects and tests, build and use git. Files it changes there come back to your phone (with undo). Editing works the same with this on or off. Uses a bit more AI credit per job.")
+            }
+            Section {
+                Picker("Ask Before", selection: $s.agentApproval) {
+                    Text("Deletes & overwrites").tag("risky")
+                    Text("Every change").tag("all")
+                }
+            } header: { Text("Approvals") } footer: { Text("Everything the agent changes can be undone from its ⋯ menu.") }
+            Section {
+                Stepper2(title: "Spending Limit per Chat", value: $s.agentSpendCap, range: 0.05...20, step: 0.05, format: { String(format: "$%.2f", $0) })
+                Stepper(value: $s.agentMaxSteps, in: 5...200, step: 5) {
+                    HStack { Text("Max Steps per Request"); Spacer(); Text("\(s.agentMaxSteps)").foregroundStyle(.secondary) }
+                }
+            } header: { Text("Limits") } footer: {
+                Text("The agent talks to Claude through your runner server, where your Anthropic API key is kept. The key never goes in the app.")
+            }
+        }
+        .navigationTitle("Agent")
+    }
+}
+
+
+struct BackgroundSettings: View {
+    @EnvironmentObject var s: AppSettings
+    @EnvironmentObject var router: Router
+
+    var body: some View {
+        Form {
+            Section {
+                if s.backgroundActive {
+                    Picker("Fit", selection: $s.backgroundFit) {
+                        Text("Fill Screen").tag("fill"); Text("Fit Whole Image").tag("fit")
+                    }
+                    Stepper2(title: "Show Through Editor", value: $s.backgroundStrength, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
+                    Stepper2(title: "Darken", value: $s.backgroundDim, range: 0...0.9, step: 0.05, format: { String(format: "%.0f%%", $0 * 100) })
+                    Stepper2(title: "Frosted Glass", value: $s.backgroundBlur, range: 0...1, step: 0.1, format: { String(format: "%.0f%%", $0 * 100) })
+                    if s.backgroundKind != "image" {
+                        Toggle("Animate", isOn: $s.animateBackground)
+                    }
+                }
+                Button { pickPhotos() } label: { Label("Choose from Photos…", systemImage: "photo.on.rectangle") }
+                Button { pickFiles() } label: { Label("Choose from Files…", systemImage: "folder") }
+                if s.backgroundActive {
+                    Button(role: .destructive) { BackgroundStore.remove() } label: { Label("Remove Background", systemImage: "xmark.circle") }
+                }
+            } header: { Text("Background") } footer: {
+                Text("Use a photo, GIF, video or Live Photo (it plays as a loop, muted). It pauses whenever MangoIDE isn't on screen.")
+            }
+
+            Section {
+                Toggle("Seasonal Effects", isOn: $s.showEffects)
+                if s.showEffects {
+                    Stepper2(title: "Effect Amount", value: $s.effectIntensity, range: 0.25...2.5, step: 0.25, format: { String(format: "%.0f%%", $0 * 100) })
+                }
+            } header: { Text("Effects") } footer: {
+                Text("Themes with an effect (like snow on winter themes) show it over the editor. It never blocks taps.")
+            }
+        }
+        .navigationTitle("Backgrounds & Effects")
     }
 
     private func pickPhotos() {
@@ -351,78 +490,22 @@ struct RunSettings: View {
     }
 }
 
-struct GeneralSettings: View {
+struct LayoutSettings: View {
     @EnvironmentObject var s: AppSettings
     var body: some View {
         Form {
-            Toggle("Haptic Feedback", isOn: $s.hapticFeedback)
-            Toggle("Keep Screen Awake", isOn: $s.keepScreenAwake)
-            Toggle("Show Welcome File When Nothing Is Open", isOn: $s.showWelcome)
-            Toggle("Enable Extensions", isOn: $s.extensionsEnabled)
-        }
-        .navigationTitle("General")
-    }
-}
-
-
-struct AgentSettings: View {
-    @EnvironmentObject var s: AppSettings
-    @State private var keyDraft = ""
-    @State private var editingKey = false
-
-    private var maskedKey: String {
-        let k = s.agentAPIKey
-        guard k.count > 12 else { return k.isEmpty ? "Not set" : "Saved" }
-        return String(k.prefix(7)) + "…" + String(k.suffix(4))
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                if editingKey || s.agentAPIKey.isEmpty {
-                    SecureField("sk-ant-…", text: $keyDraft)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    HStack {
-                        Button("Save Key") {
-                            s.agentAPIKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                            keyDraft = ""; editingKey = false
-                        }
-                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                        if editingKey { Spacer(); Button("Cancel") { keyDraft = ""; editingKey = false } }
-                    }
-                } else {
-                    LabeledContent("API Key", value: maskedKey)
-                    Button("Change Key") { editingKey = true }
-                    Button("Remove Key", role: .destructive) { s.agentAPIKey = "" }
+            Section("Layout") {
+                Toggle("Status Bar", isOn: $s.showStatusBar)
+                Toggle("File Icons", isOn: $s.showFileIcons)
+                Toggle("Compact Tabs", isOn: $s.compactTabs)
+                Toggle("Close Buttons on Tabs", isOn: $s.showTabCloseButtons)
+                Picker("Split Direction", selection: $s.splitOrientation) {
+                    Text("Automatic").tag("auto"); Text("Side by Side").tag("horizontal"); Text("Top and Bottom").tag("vertical")
                 }
-            } header: { Text("Anthropic API Key") } footer: {
-                Text("Stored only in this iPhone's Keychain. It's not in the app, its settings or the IPA, and it's never sent to your server: the agent talks to Anthropic directly. Get a key at console.anthropic.com.")
-            }
-            Section {
-                Picker("Model", selection: $s.agentModel) {
-                    ForEach(AgentSession.models, id: \.id) { m in Text(m.name).tag(m.id) }
-                }
-            } footer: { Text("Haiku is cheapest (about 2¢ for a small job), Sonnet is the best value (about 25¢), Opus is strongest (about 50¢).") }
-            Section {
-                Toggle("Cloud Workspace", isOn: $s.agentCloudWorkspace)
-            } header: { Text("Beta") } footer: {
-                Text("Gives the agent a Linux copy of your project on your runner server, so it can install packages, run whole projects and tests, build and use git. Files it changes there come back to your phone (with undo). Editing works the same with this on or off. Uses a bit more AI credit per job.")
-            }
-            Section {
-                Picker("Ask Before", selection: $s.agentApproval) {
-                    Text("Deletes & overwrites").tag("risky")
-                    Text("Every change").tag("all")
-                }
-            } header: { Text("Approvals") } footer: { Text("Everything the agent changes can be undone from its ⋯ menu.") }
-            Section {
-                Stepper2(title: "Spending Limit per Chat", value: $s.agentSpendCap, range: 0.05...20, step: 0.05, format: { String(format: "$%.2f", $0) })
-                Stepper(value: $s.agentMaxSteps, in: 5...200, step: 5) {
-                    HStack { Text("Max Steps per Request"); Spacer(); Text("\(s.agentMaxSteps)").foregroundStyle(.secondary) }
-                }
-            } header: { Text("Limits") } footer: {
-                Text("The agent talks to Claude through your runner server, where your Anthropic API key is kept. The key never goes in the app.")
+                Stepper2(title: "Sidebar Width (iPad)", value: $s.sidebarWidth, range: 200...420, step: 20)
+                Stepper2(title: "Console Text Size", value: $s.consoleFontSize, range: 9...22, step: 1)
             }
         }
-        .navigationTitle("Agent")
+        .navigationTitle("Layout")
     }
 }

@@ -26,6 +26,7 @@ struct MangoIDEApp: App {
                     router.editor = editor
                     agent.editor = editor
                     CloudSync.shared.editor = editor
+                    LiveSession.shared.editor = editor
                     CloudSync.shared.startTimer()
                     AccountManager.shared.refresh()
                     FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
@@ -37,20 +38,26 @@ struct MangoIDEApp: App {
                         editor.open(workspace.scratchFolder.appendingPathComponent("Welcome.md"))
                     }
                     WelcomePrompt.showIfDue(router)
+                    LiveSession.shared.restore()
                 }
                 .onOpenURL { url in
                     if url.scheme == "mangoide" {
-                        // Back from Stripe checkout or the billing portal.
-                        AccountManager.shared.refresh()
+                        // mangoide://join/CODE is a live session invite, mangoide://share/CODE a shared project.
+                        let code = url.pathComponents.dropFirst().first.map { $0.uppercased().filter { $0.isLetter || $0.isNumber } } ?? ""
+                        switch url.host {
+                        case "join" where !code.isEmpty: router.show(.joinLive(code))
+                        case "share" where !code.isEmpty: router.show(.openShare(code))
+                        default: AccountManager.shared.refresh()   // back from Stripe checkout or the billing portal
+                        }
                         return
                     }
                     if ArchiveService.isArchive(url) { router.importAndExtract([url]) } else { editor.openExternal(url) }
                 }
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .background { editor.saveAllNow(); editor.saveSession(); CloudSync.shared.syncNow() }
+            if phase == .background { editor.saveAllNow(); editor.saveSession(); CloudSync.shared.syncNow(); LiveSession.shared.appWentToBackground() }
             else if phase != .active { editor.saveAllNow(); editor.saveSession() }
-            else { AccountManager.shared.refresh(); WelcomePrompt.showIfDue(router); CloudSync.shared.syncNow() }
+            else { AccountManager.shared.refresh(); WelcomePrompt.showIfDue(router); CloudSync.shared.syncNow(); LiveSession.shared.appBecameActive() }
         }
     }
 }
@@ -58,7 +65,8 @@ struct MangoIDEApp: App {
 enum AppSheet: Identifiable {
     case newFile(URL), newFolder(URL), newProject, settings, extensions, snippets
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
-    case projects, pickProjectsFolder, agent, welcome, github
+    case projects, pickProjectsFolder, agent, welcome, github, collab
+    case openShare(String), joinLive(String)
 
     var id: String {
         switch self {
@@ -78,6 +86,9 @@ enum AppSheet: Identifiable {
         case .agent: return "agent"
         case .welcome: return "welcome"
         case .github: return "github"
+        case .collab: return "collab"
+        case .openShare(let c): return "openShare" + c
+        case .joinLive(let c): return "joinLive" + c
         }
     }
 }

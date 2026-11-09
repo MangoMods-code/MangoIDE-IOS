@@ -96,6 +96,10 @@ final class AppSettings: ObservableObject {
     @Published var agentCloudWorkspace: Bool { didSet { put(agentCloudWorkspace, "agentCloudWorkspace") } }
     /// Cloud Sync & Backup (Pro). Off until you turn it on.
     @Published var cloudSync: Bool { didSet { put(cloudSync, "cloudSync") } }
+    /// Live sessions: show other people's cursors and names in the editor.
+    @Published var showPeerCursors: Bool { didSet { put(showPeerCursors, "showPeerCursors") } }
+    /// How long new share links work, in days.
+    @Published var shareLinkDays: Int { didSet { put(shareLinkDays, "shareLinkDays") } }
     /// Your Anthropic API key. Kept only in this iPhone's Keychain: never in settings files, the app or a server.
     @Published var agentAPIKey: String { didSet { KeychainStore.set(agentAPIKey.trimmingCharacters(in: .whitespacesAndNewlines), for: "anthropicKey") } }
 
@@ -190,6 +194,8 @@ final class AppSettings: ObservableObject {
         agentMaxSteps = AppSettings.v("agentMaxSteps", 40)
         agentCloudWorkspace = AppSettings.v("agentCloudWorkspace", false)
         cloudSync = AppSettings.v("cloudSync", false)
+        showPeerCursors = AppSettings.v("showPeerCursors", true)
+        shareLinkDays = AppSettings.v("shareLinkDays", 30)
         agentAPIKey = KeychainStore.get("anthropicKey") ?? ""
         hapticFeedback = AppSettings.v("hapticFeedback", true)
         keepScreenAwake = AppSettings.v("keepScreenAwake", false)
@@ -199,7 +205,7 @@ final class AppSettings: ObservableObject {
 
     func resetAll() {
         if let id = Bundle.main.bundleIdentifier {
-            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || ["runnerURL", "runnerKey", "backgroundKind", "backgroundFile"].contains($0.key) }
+            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || $0.key.hasPrefix("cloud.") || $0.key.hasPrefix("live.") || $0.key.hasPrefix("account.") || $0.key.hasPrefix("welcomePrompt.") || ["runnerURL", "runnerKey", "backgroundKind", "backgroundFile"].contains($0.key) }
             AppSettings.d.removePersistentDomain(forName: id)
             for (k, val) in keep { AppSettings.d.set(val, forKey: k) }
         }

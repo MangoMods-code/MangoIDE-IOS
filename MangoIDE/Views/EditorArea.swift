@@ -272,6 +272,7 @@ struct WelcomeView: View {
                     action("square.and.arrow.down", "Import Files…") { router.show(.importFiles(nil)) }
                     action("doc.zipper", "Import ZIP / RAR…") { router.show(.importArchive) }
                     action("arrow.triangle.branch", "Clone from GitHub…") { router.show(.github) }
+                    action("person.2", "Join a Live Session…") { router.show(.collab) }
                     action("square.grid.2x2", workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…") {
                         router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects)
                     }
@@ -334,8 +335,12 @@ struct ProjectHomeView: View {
                 Button { router.show(.newFile(project)) } label: { Label("New File", systemImage: "doc.badge.plus") }
                     .buttonStyle(.bordered)
             }
-            Button { router.show(.github) } label: { Label("GitHub", systemImage: "arrow.triangle.branch") }
-                .buttonStyle(.bordered)
+            HStack(spacing: 12) {
+                Button { router.show(.github) } label: { Label("GitHub", systemImage: "arrow.triangle.branch") }
+                    .buttonStyle(.bordered)
+                Button { router.show(.collab) } label: { Label("Collaborate", systemImage: "person.2") }
+                    .buttonStyle(.bordered)
+            }
             Button("Leave Project") {
                 editor.lastProject = nil
                 if workspace.activeProject == project { workspace.openProject(nil) }

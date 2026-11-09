@@ -35,6 +35,9 @@ struct CodeEditorView: UIViewRepresentable {
             guard let v, v.textView.textStorage.string != text else { return }
             v.setText(text)
         }
+        document.addRemoteListener(c.listenerID) { [weak v] edits, old, new in v?.applyRemoteEdits(edits, old: old, new: new) }
+        document.addPeerListener(c.listenerID) { [weak v] peers in v?.showPeers(peers) }
+        if !document.peers.isEmpty { v.showPeers(document.peers) }
         editor.register(v.textView, pane: paneID)
         let doc = document
         DispatchQueue.main.async {
@@ -74,6 +77,7 @@ struct CodeEditorView: UIViewRepresentable {
             doc.userEdited(text, source: source)
             if let v { doc.savedSelection = v.textView.selectedRange }
         }
+        v.onSelection = { [weak doc] r in doc?.onLocalSelection?(r) }
         v.onFocus = onFocus
         let cursor = editor.cursor
         let ed = editor

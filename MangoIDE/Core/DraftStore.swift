@@ -6,6 +6,11 @@ enum DraftStore {
     private struct Draft: Codable { let path: String; let text: String; let savedAt: Date }
     private static let queue = DispatchQueue(label: "mango.drafts", qos: .utility)
 
+    static var folderURL: URL { folder }
+
+    /// Deletes every saved draft (Settings › Storage).
+    static func removeAll() { queue.sync { try? FileManager.default.removeItem(at: folder) } }
+
     private static var folder: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Drafts", isDirectory: true)

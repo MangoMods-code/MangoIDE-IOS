@@ -9,7 +9,7 @@
 
 const crypto = require("crypto");
 
-module.exports = function cloud({ db, send, readBody, isPro }) {
+module.exports = function cloud({ db, send, readBody, isPro, extraLive }) {
   const QUOTA = Number(process.env.CLOUD_QUOTA_MB || 2048) * 1024 * 1024;
   const KEEP = Number(process.env.CLOUD_KEEP_SNAPSHOTS || 20);
   const MAX_FILE = 25 * 1024 * 1024;
@@ -75,6 +75,7 @@ module.exports = function cloud({ db, send, readBody, isPro }) {
       "SELECT s.manifest FROM cloud_snapshots s JOIN cloud_projects p ON p.id = s.project_id WHERE p.user_id = $1", [userId]);
     const live = new Set();
     for (const row of m.rows) for (const v of Object.values(row.manifest)) live.add(v[0]);
+    if (extraLive) for (const s of await extraLive(userId)) live.add(s);   // files in shared links
     const all = await db.query("SELECT sha FROM cloud_blobs WHERE user_id = $1 AND created_at < now() - interval '1 hour'", [userId]);
     const dead = all.rows.map((r) => r.sha).filter((s) => !live.has(s));
     for (let i = 0; i < dead.length; i += 500) {

@@ -380,7 +380,8 @@ async function ai(req, res, u) {
 // ---------- GitHub (repos, clone, pull, push) ----------
 
 const githubRoutes = require("./github")({ decrypt, send, readBody, isPro });
-const cloudRoutes = require("./cloud")({ db, send, readBody, isPro });
+const collab = require("./collab")({ db, send, readBody, isPro, authUser, html, appScheme: APP_SCHEME });
+const cloudRoutes = require("./cloud")({ db, send, readBody, isPro, extraLive: collab.liveShas });
 
 // ---------- Routes ----------
 
@@ -399,6 +400,7 @@ async function route(req, res) {
   }
 
   if (rateLimited(req, "api", 300, 60 * 1000)) return send(res, 429, { message: "Too many requests." });
+  if (await collab.publicRoute(req, res, url, p)) return;
   const u = await authUser(req);
   if (!u) return send(res, 401, { message: "Please sign in again." });
 
@@ -420,11 +422,12 @@ async function route(req, res) {
   if (req.method === "POST" && p === "/ai/messages") return ai(req, res, u);
   if (p.startsWith("/github/") && await githubRoutes(req, res, u, url, p)) return;
   if (p.startsWith("/cloud/") && await cloudRoutes(req, res, u, url, p)) return;
+  if ((p.startsWith("/collab/") || p.startsWith("/share/")) && await collab.route(req, res, u, url, p)) return;
   send(res, 404, { message: "Not found" });
 }
 
-migrate().then(() => cloudRoutes.migrate()).then(() => {
-  http.createServer((req, res) => {
+migrate().then(() => cloudRoutes.migrate()).then(() => collab.migrate()).then(() => {
+  const server = http.createServer((req, res) => {
     route(req, res).catch((e) => {
       console.error(e);
       if (!res.headersSent) send(res, 500, { message: "Server error" });
@@ -433,4 +436,5 @@ migrate().then(() => cloudRoutes.migrate()).then(() => {
     console.log(`MangoIDE accounts on ${PORT}`);
     console.log(`GitHub login: ${GITHUB_CLIENT_ID ? "configured" : "missing GITHUB_CLIENT_ID/SECRET"} · Stripe: ${stripe ? (STRIPE_SECRET_KEY.startsWith("sk_test") ? "TEST mode" : "LIVE mode") : "missing"} · Webhook: ${STRIPE_WEBHOOK_SECRET ? "ok" : "missing"} · AI credits: ${ANTHROPIC_KEY ? "on" : "off"} · Token key: ${TOKEN_ENC_KEY?.length === 32 ? "ok" : "missing"}`);
   });
+  collab.attach(server);
 }).catch((e) => { console.error("Database setup failed:", e); process.exit(1); });

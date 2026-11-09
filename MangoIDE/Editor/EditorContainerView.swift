@@ -13,6 +13,9 @@ final class EditorContainerView: UIView, UITextViewDelegate {
     var onTextChange: ((String) -> Void)?
     var onFocus: (() -> Void)?
     var onCursor: ((Int, Int) -> Void)?
+    var onSelection: ((NSRange) -> Void)?
+    private var peers: [PeerCaret] = []
+    private var peerViews: [UIView] = []
     var snippetProvider: (() -> [Snippet])?
 
     private var highlightWork: DispatchWorkItem?
@@ -60,6 +63,79 @@ final class EditorContainerView: UIView, UITextViewDelegate {
             textView.textContainer.size.width = max(10, textView.bounds.width - textView.textContainerInset.left - textView.textContainerInset.right)
         }
         gutter.setNeedsDisplay()
+        if !peers.isEmpty { layoutPeers() }
+    }
+
+    // MARK: Live sessions
+
+    /// Applies someone else's edit without touching your cursor or scroll position.
+    func applyRemoteEdits(_ edits: [(NSRange, String)], old: String, new: String) {
+        guard textView.markedTextRange == nil, textView.textStorage.string == old else { setText(new); return }
+        var sel = textView.selectedRange
+        var start = sel.location, end = NSMaxRange(sel)
+        let attrs = config.map { SyntaxHighlighter.baseAttributes(theme: theme, config: $0) } ?? [:]
+        isReplacing = true
+        textView.textStorage.beginEditing()
+        for (r, str) in edits {
+            textView.textStorage.replaceCharacters(in: r, with: NSAttributedString(string: str, attributes: attrs))
+            let delta = (str as NSString).length - r.length
+            func move(_ i: Int) -> Int { i < r.location ? i : (i >= NSMaxRange(r) ? i + delta : r.location) }
+            start = move(start); end = move(end)
+        }
+        textView.textStorage.endEditing()
+        isReplacing = false
+        let len = textView.textStorage.length
+        start = min(max(0, start), len); end = min(max(start, end), len)
+        sel = NSRange(location: start, length: end - start)
+        if textView.selectedRange != sel { textView.selectedRange = sel }
+        textView.undoManager?.removeAllActions()
+        recomputeLines()
+        scheduleHighlight()
+        gutter.setNeedsDisplay()
+        layoutPeers()
+    }
+
+    /// Other people's cursors, with their names.
+    func showPeers(_ p: [PeerCaret]) {
+        peers = p
+        layoutPeers()
+    }
+
+    private func layoutPeers() {
+        peerViews.forEach { $0.removeFromSuperview() }
+        peerViews.removeAll()
+        let len = textView.textStorage.length
+        for p in peers {
+            guard let pos = textView.position(from: textView.beginningOfDocument, offset: min(max(0, p.location), len)) else { continue }
+            let r = textView.caretRect(for: pos)
+            guard r.origin.x.isFinite, r.origin.y.isFinite else { continue }
+            let color = UIColor(hex: p.color)
+            if p.length > 0, let endPos = textView.position(from: pos, offset: min(p.length, len - min(p.location, len))),
+               let range = textView.textRange(from: pos, to: endPos) {
+                for sr in textView.selectionRects(for: range) where sr.rect.width > 0 {
+                    let v = UIView(frame: sr.rect)
+                    v.backgroundColor = color.withAlphaComponent(0.22)
+                    v.isUserInteractionEnabled = false
+                    textView.addSubview(v); peerViews.append(v)
+                }
+            }
+            let caret = UIView(frame: CGRect(x: r.minX, y: r.minY, width: 2, height: r.height))
+            caret.backgroundColor = color
+            caret.isUserInteractionEnabled = false
+            let label = UILabel()
+            label.text = " \(p.name) "
+            label.font = .systemFont(ofSize: 10, weight: .bold)
+            label.textColor = .white
+            label.backgroundColor = color
+            label.layer.cornerRadius = 3
+            label.layer.masksToBounds = true
+            label.sizeToFit()
+            label.frame.origin = CGPoint(x: r.minX, y: max(0, r.minY - label.frame.height))
+            label.isUserInteractionEnabled = false
+            label.alpha = 0.92
+            textView.addSubview(caret); textView.addSubview(label)
+            peerViews += [caret, label]
+        }
     }
 
     // MARK: Configuration
@@ -140,6 +216,7 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         textView.selectedRange = NSRange(location: min(sel.location, len), length: 0)
         textView.setContentOffset(offset, animated: false)
         gutter.setNeedsDisplay()
+        if !peers.isEmpty { layoutPeers() }
     }
 
     // MARK: Change handling
@@ -264,6 +341,7 @@ final class EditorContainerView: UIView, UITextViewDelegate {
 
     func textViewDidChangeSelection(_ tv: UITextView) {
         reportCursor()
+        onSelection?(tv.selectedRange)
         gutter.setNeedsDisplay()
     }
 
