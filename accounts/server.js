@@ -210,7 +210,7 @@ async function githubCallback(req, res, url) {
      RETURNING id`, [gh.id, gh.login, gh.name || null, gh.avatar_url || null, encrypt(tok.access_token)]);
 
   const session = randomToken(32);
-  const device = String(url.searchParams.get("device") || "").slice(0, 80);
+  const device = String(req.headers["user-agent"] || "").slice(0, 120);
   await db.query(
     `INSERT INTO sessions (user_id, token_hash, device, expires_at) VALUES ($1, $2, $3, now() + interval '${SESSION_DAYS} days')`,
     [u.rows[0].id, sha256(session), device]);

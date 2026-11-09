@@ -25,6 +25,7 @@ struct MangoIDEApp: App {
                 .onAppear {
                     router.editor = editor
                     agent.editor = editor
+                    AccountManager.shared.refresh()
                     FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
                     workspace.setUp()
                     extensions.reload()
@@ -35,11 +36,17 @@ struct MangoIDEApp: App {
                     }
                 }
                 .onOpenURL { url in
+                    if url.scheme == "mangoide" {
+                        // Back from Stripe checkout or the billing portal.
+                        AccountManager.shared.refresh()
+                        return
+                    }
                     if ArchiveService.isArchive(url) { router.importAndExtract([url]) } else { editor.openExternal(url) }
                 }
         }
         .onChange(of: scenePhase) { phase in
             if phase != .active { editor.saveAllNow(); editor.saveSession() }
+            else { AccountManager.shared.refresh() }
         }
     }
 }

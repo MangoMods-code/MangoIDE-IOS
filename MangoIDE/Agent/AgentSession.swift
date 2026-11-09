@@ -125,9 +125,13 @@ final class AgentSession: ObservableObject {
             req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!, timeoutInterval: 200)
             req.setValue(ownKey, forHTTPHeaderField: "x-api-key")
             req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else if let account = AccountManager.shared.token {
+            // Signed in: use your MangoIDE AI credit.
+            req = URLRequest(url: AccountManager.server.appendingPathComponent("ai/messages"), timeoutInterval: 200)
+            req.setValue("Bearer " + account, forHTTPHeaderField: "Authorization")
         } else {
             guard let url = RunService.runnerEndpoint(s.runnerURL, path: "x")?.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("agent/messages") else {
-                finish("Add your Anthropic API key in Settings › Agent first.", error: true)
+                finish("Sign in (Settings › Account) to use AI credit, or add your own Anthropic key in Settings › Agent.", error: true)
                 return
             }
             req = URLRequest(url: url, timeoutInterval: 200)
@@ -138,7 +142,12 @@ final class AgentSession: ObservableObject {
         req.httpBody = try? JSONSerialization.data(withJSONObject: requestBody())
 
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, error in
-            DispatchQueue.main.async { self?.handle(data: data, response: resp, error: error) }
+            DispatchQueue.main.async {
+                if let left = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-Credits"), let v = Double(left) {
+                    AccountManager.shared.updateCredits(v)
+                }
+                self?.handle(data: data, response: resp, error: error)
+            }
         }.resume()
     }
 

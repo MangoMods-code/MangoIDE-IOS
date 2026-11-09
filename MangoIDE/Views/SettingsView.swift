@@ -10,6 +10,9 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink { AccountView() } label: { AccountRow() }
+                }
+                Section {
                     NavigationLink { EditorSettings() } label: { row("Editor", "character.cursor.ibeam", .blue) }
                     NavigationLink { KeyboardSettings() } label: { row("Keyboard", "keyboard", .gray) }
                     NavigationLink { AppearanceSettings() } label: { row("Appearance & Themes", "paintpalette", .pink) }
