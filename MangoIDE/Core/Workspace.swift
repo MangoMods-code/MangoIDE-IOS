@@ -446,3 +446,32 @@ final class Workspace: ObservableObject {
     - JavaScript runs right on your phone. HTML opens a live preview. Every other language runs on a runner server you set in Settings › Run.
     """
 }
+
+
+/// Paths that arrive from the network (cloud, shared links, live sessions) are checked here before
+/// anything is written, so nothing can ever land outside the project folder.
+enum SafePath {
+    static func ok(_ rel: String) -> Bool {
+        guard !rel.isEmpty, rel.utf8.count < 1000, !rel.hasPrefix("/"), !rel.contains("\\"), !rel.contains("\0") else { return false }
+        return !rel.split(separator: "/", omittingEmptySubsequences: false).contains { $0.isEmpty || $0 == "." || $0 == ".." }
+    }
+
+    /// Live sessions also may not touch the app's private folder (agent memory, run settings) or git internals.
+    static func okLive(_ rel: String) -> Bool {
+        guard ok(rel) else { return false }
+        let first = rel.split(separator: "/").first.map { $0.lowercased() } ?? ""
+        return first != ".mango" && first != ".git"
+    }
+
+    /// Archives can contain shortcuts (symlinks) that point outside the folder they were unpacked into.
+    /// Those are removed so opening one can never read some other file.
+    static func removeEscapingLinks(in dir: URL) {
+        let fm = FileManager.default
+        guard let e = fm.enumerator(at: dir, includingPropertiesForKeys: [.isSymbolicLinkKey], options: []) else { return }
+        var doomed: [URL] = []
+        for case let u as URL in e where (try? u.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+            if !Workspace.shared.isInside(u.resolvingSymlinksInPath(), dir) { doomed.append(u) }
+        }
+        for u in doomed { try? fm.removeItem(at: u) }
+    }
+}

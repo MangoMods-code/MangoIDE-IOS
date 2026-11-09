@@ -133,7 +133,7 @@ actor CloudEngine {
             }
             var files: [String: Entry] = [:]
             for (p, v) in m {
-                guard v.count >= 2, let sha = v[0] as? String, let size = (v[1] as? NSNumber)?.intValue else { continue }
+                guard SafePath.ok(p), v.count >= 2, let sha = v[0] as? String, let size = (v[1] as? NSNumber)?.intValue else { continue }
                 files[p] = Entry(sha: sha, size: size)
             }
             return (sid, files)
@@ -568,7 +568,7 @@ extension CloudEngine {
         let obj = try await call("share/info", query: ["code": code.uppercased()], signedIn: false)
         var files: [String: Entry] = [:]
         for (p, v) in obj["manifest"] as? [String: [Any]] ?? [:] {
-            if v.count >= 2, let sha = v[0] as? String, let size = (v[1] as? NSNumber)?.intValue { files[p] = Entry(sha: sha, size: size) }
+            if SafePath.ok(p), v.count >= 2, let sha = v[0] as? String, let size = (v[1] as? NSNumber)?.intValue { files[p] = Entry(sha: sha, size: size) }
         }
         return ShareInfo(code: obj["code"] as? String ?? code, name: obj["name"] as? String ?? "Project", owner: obj["owner"] as? String ?? "",
                          files: (obj["files"] as? NSNumber)?.intValue ?? files.count, size: (obj["size"] as? NSNumber)?.doubleValue ?? 0,

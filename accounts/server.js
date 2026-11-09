@@ -79,6 +79,14 @@ async function migrate() {
       app_state TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE oauth_states ADD COLUMN IF NOT EXISTS challenge TEXT;
+    CREATE TABLE IF NOT EXISTS login_codes (
+      code_hash TEXT PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      challenge TEXT NOT NULL,
+      device TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 
@@ -132,7 +140,8 @@ function decrypt(blob) {
 
 function send(res, status, obj, headers = {}) {
   const data = JSON.stringify(obj);
-  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers });
+  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains", "Referrer-Policy": "no-referrer", ...headers });
   res.end(data);
 }
 
@@ -173,9 +182,10 @@ function readBody(req, limit = 12 * 1024 * 1024) {
 
 // Simple per-IP rate limiting for sensitive endpoints.
 const buckets = new Map();
-function rateLimited(req, key, limit, windowMs) {
-  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-  const k = `${key}:${ip}`;
+// The proxy in front of this server sets X-Real-IP itself, so a client can't fake it to dodge limits.
+const clientIp = (req) => String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+function rateLimited(req, key, limit, windowMs) { return overLimit(`${key}:${clientIp(req)}`, limit, windowMs); }
+function overLimit(k, limit, windowMs) {
   const now = Date.now();
   const b = buckets.get(k) || { count: 0, reset: now + windowMs };
   if (now > b.reset) { b.count = 0; b.reset = now + windowMs; }
@@ -219,9 +229,13 @@ async function githubStart(req, res, url) {
   if (!GITHUB_CLIENT_ID) return html(res, 503, "Not set up yet", "<p>GitHub sign-in isn't configured on the server yet.</p>");
   const appState = url.searchParams.get("app_state") || "";
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(appState)) return html(res, 400, "Bad request", "<p>Open sign-in from MangoIDE.</p>");
+  // The app proves later that it's the one that started this sign-in (PKCE). Older builds can't.
+  const challenge = url.searchParams.get("challenge") || "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) return html(res, 400, "Update MangoIDE", "<p>This version of MangoIDE is too old to sign in. Install the latest version and try again.</p>");
   const state = randomToken(24);
-  await db.query("INSERT INTO oauth_states (state, app_state) VALUES ($1, $2)", [state, appState]);
+  await db.query("INSERT INTO oauth_states (state, app_state, challenge) VALUES ($1, $2, $3)", [state, appState, challenge]);
   await db.query("DELETE FROM oauth_states WHERE created_at < now() - interval '15 minutes'");
+  await db.query("DELETE FROM login_codes WHERE created_at < now() - interval '5 minutes'");
   const q = new URLSearchParams({
     client_id: GITHUB_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/auth/github/callback`,
@@ -235,8 +249,8 @@ async function githubStart(req, res, url) {
 async function githubCallback(req, res, url) {
   const code = url.searchParams.get("code"), state = url.searchParams.get("state");
   if (!code || !state) return html(res, 400, "Sign-in cancelled", "<p>You can close this and try again in MangoIDE.</p>");
-  const st = await db.query("DELETE FROM oauth_states WHERE state = $1 AND created_at > now() - interval '15 minutes' RETURNING app_state", [state]);
-  if (!st.rowCount) return html(res, 400, "Sign-in expired", "<p>Please start again from MangoIDE.</p>");
+  const st = await db.query("DELETE FROM oauth_states WHERE state = $1 AND created_at > now() - interval '15 minutes' RETURNING app_state, challenge", [state]);
+  if (!st.rowCount || !st.rows[0].challenge) return html(res, 400, "Sign-in expired", "<p>Please start again from MangoIDE.</p>");
   const appState = st.rows[0].app_state;
 
   const tokRes = await fetch("https://github.com/login/oauth/access_token", {
@@ -256,13 +270,29 @@ async function githubCallback(req, res, url) {
      ON CONFLICT (github_id) DO UPDATE SET login = EXCLUDED.login, name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url, github_token_enc = EXCLUDED.github_token_enc
      RETURNING id`, [gh.id, gh.login, gh.name || null, gh.avatar_url || null, encrypt(tok.access_token)]);
 
-  const session = randomToken(32);
+  // The app gets a one-time code, never the session itself. The code is useless without the secret
+  // only the app that started this sign-in has, works once, and expires in 2 minutes.
+  const loginCode = randomToken(32);
   const device = String(req.headers["user-agent"] || "").slice(0, 120);
+  await db.query("INSERT INTO login_codes (code_hash, user_id, challenge, device) VALUES ($1, $2, $3, $4)",
+    [sha256(loginCode), u.rows[0].id, st.rows[0].challenge, device]);
+  redirect(res, `${APP_SCHEME}://auth?code=${encodeURIComponent(loginCode)}&app_state=${encodeURIComponent(appState)}`);
+}
+
+// POST /auth/exchange {code, verifier} → {token}
+async function exchange(req, res) {
+  if (rateLimited(req, "exchange", 30, 10 * 60 * 1000)) return send(res, 429, { message: "Too many attempts. Try again in a few minutes." });
+  let b; try { b = JSON.parse((await readBody(req, 4096)).toString() || "{}"); } catch { return send(res, 400, { message: "Bad request." }); }
+  if (typeof b.code !== "string" || typeof b.verifier !== "string" || !/^[A-Za-z0-9_-]{43,128}$/.test(b.verifier)) return send(res, 400, { message: "Bad request." });
+  const r = await db.query("DELETE FROM login_codes WHERE code_hash = $1 AND created_at > now() - interval '2 minutes' RETURNING user_id, challenge, device", [sha256(b.code)]);
+  const want = r.rows[0] && Buffer.from(r.rows[0].challenge);
+  const got = Buffer.from(crypto.createHash("sha256").update(b.verifier).digest("base64url"));
+  if (!want || want.length !== got.length || !crypto.timingSafeEqual(want, got)) return send(res, 400, { message: "Sign-in expired. Try again." });
+  const session = randomToken(32);
   await db.query(
     `INSERT INTO sessions (user_id, token_hash, device, expires_at) VALUES ($1, $2, $3, now() + interval '${SESSION_DAYS} days')`,
-    [u.rows[0].id, sha256(session), device]);
-  // Hand the session to the app through its own URL scheme. ASWebAuthenticationSession captures this; it never shows in Safari history.
-  redirect(res, `${APP_SCHEME}://auth?token=${encodeURIComponent(session)}&app_state=${encodeURIComponent(appState)}`);
+    [r.rows[0].user_id, sha256(session), r.rows[0].device]);
+  send(res, 200, { token: session });
 }
 
 // ---------- Payments (Stripe Checkout) ----------
@@ -386,6 +416,14 @@ async function webhook(req, res) {
     case "customer.subscription.deleted":
       await syncSubscription(obj);
       break;
+    case "charge.dispute.created": {
+      // A chargeback on a top-up: take that credit back so it can't be spent after the money is pulled.
+      const pi = obj.payment_intent && (await stripe.paymentIntents.retrieve(obj.payment_intent));
+      if (pi?.metadata?.kind === "topup") {
+        await addLedger(Number(pi.metadata.user_id), -Number(obj.amount) * 10000, "dispute", `dispute:${obj.id}`);
+      }
+      break;
+    }
     case "charge.refunded": {
       // Take refunded top-ups back out of the balance.
       const pi = obj.payment_intent && (await stripe.paymentIntents.retrieve(obj.payment_intent));
@@ -413,14 +451,23 @@ async function ai(req, res, u) {
   if (!ANTHROPIC_KEY) return send(res, 503, { message: "AI credits aren't set up on the server yet." });
   if (aiBusy.has(u.id)) return send(res, 429, { message: "One request at a time, please." });
   if (Number(u.credits_micro) < 5000) return send(res, 402, { message: "You're out of AI credit. Top up in Settings › Account." });
-  const body = JSON.parse((await readBody(req)).toString());
-  if (!MODEL_PRICES[body.model]) return send(res, 400, { message: "That model isn't available." });
+  let body; try { body = JSON.parse((await readBody(req)).toString()); } catch { return send(res, 400, { message: "Bad request." }); }
+  const price = MODEL_PRICES[body.model];
+  if (!price) return send(res, 400, { message: "That model isn't available." });
+  if (!Array.isArray(body.messages)) return send(res, 400, { message: "Bad request." });
+  const maxTokens = Math.max(1, Math.min(Number(body.max_tokens) || 8000, 16000));
+  const payload = JSON.stringify({ model: body.model, max_tokens: maxTokens, system: body.system, messages: body.messages, tools: body.tools });
+  // Worst case this request could cost. It has to fit in the balance, so credit can never go negative.
+  const worstUsd = ((Buffer.byteLength(payload) / 2.5) * Math.max(price.input, price.cacheWrite) + maxTokens * price.output) / 1e6;
+  if (Number(u.credits_micro) < Math.ceil(worstUsd * AI_MARKUP * 1e6)) {
+    return send(res, 402, { message: "Not enough AI credit for this request. Top up, start a new chat, or pick a cheaper model." });
+  }
   aiBusy.add(u.id);
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: body.model, max_tokens: Math.min(Number(body.max_tokens) || 8000, 16000), system: body.system, messages: body.messages, tools: body.tools }),
+      body: payload,
       signal: AbortSignal.timeout(180000),
     });
     const json = await r.json();
@@ -439,7 +486,7 @@ async function ai(req, res, u) {
 
 const policies = require("./policies")({ html: htmlPage, PRO_PRICE_CENTS, TOPUPS, AI_MARKUP });
 const githubRoutes = require("./github")({ decrypt, send, readBody, isPro });
-const collab = require("./collab")({ db, send, readBody, isPro, authUser, html, appScheme: APP_SCHEME });
+const collab = require("./collab")({ db, send, readBody, isPro, authUser, html, appScheme: APP_SCHEME, overLimit });
 const cloudRoutes = require("./cloud")({ db, send, readBody, isPro, extraLive: collab.liveShas });
 
 // ---------- Routes ----------
@@ -450,6 +497,7 @@ async function route(req, res) {
   if (req.method === "GET" && p === "/health") return send(res, 200, { ok: true, name: "MangoIDE accounts" });
   if (req.method === "GET" && p === "/auth/github/start") return githubStart(req, res, url);
   if (req.method === "GET" && p === "/auth/github/callback") return githubCallback(req, res, url);
+  if (req.method === "POST" && p === "/auth/exchange") return exchange(req, res);
   if (req.method === "POST" && p === "/stripe/webhook") return webhook(req, res);
   if (req.method === "GET" && p === "/billing/return") {
     // Hands control back to the app, which closes the checkout window.

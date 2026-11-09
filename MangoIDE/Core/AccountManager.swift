@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AuthenticationServices
+import CryptoKit
 
 /// Your MangoIDE account: Sign in with GitHub, Pro, and AI credit.
 /// The session token lives only in this iPhone's Keychain. Payments open Stripe's own checkout page in Safari,
@@ -30,6 +31,16 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
     private var authSession: ASWebAuthenticationSession?
     private var payTask: ASWebAuthenticationSession?
     private var pendingState: String?
+    private var pendingVerifier: String?
+
+    private static func randomURLSafe(_ bytes: Int) -> String {
+        var data = Data(count: bytes)
+        _ = data.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, bytes, $0.baseAddress!) }
+        return base64URL(data)
+    }
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
 
     var token: String? { KeychainStore.get("accountToken") }
     var isSignedIn: Bool { token != nil }
@@ -45,10 +56,15 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
 
     func signIn() {
         guard !busy else { return }
-        let state = UUID().uuidString.replacingOccurrences(of: "-", with: "") + UUID().uuidString.prefix(8)
+        let state = AccountManager.randomURLSafe(24)
         pendingState = state
+        // A secret only this app knows. The server gets its hash now and the secret itself at the end,
+        // so a sign-in link caught by anything else on the device is worthless.
+        let verifier = AccountManager.randomURLSafe(32)
+        pendingVerifier = verifier
+        let challenge = AccountManager.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
         var comps = URLComponents(url: AccountManager.server.appendingPathComponent("auth/github/start"), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "app_state", value: state)]
+        comps.queryItems = [URLQueryItem(name: "app_state", value: state), URLQueryItem(name: "challenge", value: challenge)]
         guard let url = comps.url else { return }
         busy = true
         let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "mangoide") { [weak self] callback, error in
@@ -65,16 +81,34 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
         authSession = nil
         if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin { return }
         guard let callback, let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems,
-              let token = items.first(where: { $0.name == "token" })?.value,
+              let code = items.first(where: { $0.name == "code" })?.value,
               let state = items.first(where: { $0.name == "app_state" })?.value else {
             message = "Sign-in didn't finish. Try again."
             return
         }
-        // Only accept the session we asked for (stops another app or page from slipping in a token).
-        guard let expected = pendingState, state == expected else { message = "Sign-in check failed. Try again."; return }
+        // Only accept the sign-in we started (stops another app or page from slipping one in).
+        guard let expected = pendingState, state == expected, let verifier = pendingVerifier else { message = "Sign-in check failed. Try again."; return }
         pendingState = nil
-        KeychainStore.set(token, for: "accountToken")
-        refresh()
+        pendingVerifier = nil
+        // Trade the one-time code plus our secret for the real session, over HTTPS.
+        var req = URLRequest(url: AccountManager.server.appendingPathComponent("auth/exchange"), timeoutInterval: 30)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["code": code, "verifier": verifier])
+        busy = true
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.busy = false
+                let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                guard (resp as? HTTPURLResponse)?.statusCode == 200, let token = json?["token"] as? String, !token.isEmpty else {
+                    self.message = json?["message"] as? String ?? "Sign-in didn't finish. Try again."
+                    return
+                }
+                KeychainStore.set(token, for: "accountToken")
+                self.refresh()
+            }
+        }.resume()
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -147,7 +181,8 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
             switch r {
             case .success(let (data, http)):
                 if http.statusCode == 200, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let s = json["url"] as? String, let url = URL(string: s), url.host?.hasSuffix("stripe.com") == true {
+                   let s = json["url"] as? String, let url = URL(string: s), url.scheme == "https",
+                   let host = url.host?.lowercased(), host == "stripe.com" || host.hasSuffix(".stripe.com") {
                     self.presentStripe(url)
                 } else {
                     self.message = self.errorText(data)

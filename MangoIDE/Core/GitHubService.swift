@@ -205,6 +205,7 @@ enum GitHub {
         let tmp = fm.temporaryDirectory.appendingPathComponent("gh-" + UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
         try fm.unzipItem(at: zip, to: tmp)
+        SafePath.removeEscapingLinks(in: tmp)
         let items = try fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: [.isDirectoryKey]).filter { $0.lastPathComponent != "__MACOSX" }
         // GitHub wraps everything in one owner-repo-sha folder.
         if items.count == 1, (try? items[0].resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true { return (tmp, items[0]) }

@@ -30,6 +30,7 @@ enum Minecraft {
             do {
                 try fm.createDirectory(at: dest, withIntermediateDirectories: true)
                 try fm.unzipItem(at: u, to: dest)
+                SafePath.removeEscapingLinks(in: dest)
                 try? fm.removeItem(at: u)
             } catch {
                 try? fm.removeItem(at: dest)

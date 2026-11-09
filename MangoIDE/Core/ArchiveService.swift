@@ -47,6 +47,7 @@ enum ArchiveService {
                 default:
                     throw ArchiveError.unsupported(archive.pathExtension)
                 }
+                SafePath.removeEscapingLinks(in: dest)
                 let result = flattenSingleFolder(dest)
                 DispatchQueue.main.async { completion(.success(result)) }
             } catch {

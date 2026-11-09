@@ -298,13 +298,13 @@ final class LiveSession: ObservableObject {
                 send(["t": "op", "path": path, "rev": -1, "op": [Any]()])   // asks the server for a resync
             }
         case "resync":
-            guard let path = m["path"] as? String, let text = m["text"] as? String, let rev = (m["rev"] as? NSNumber)?.intValue else { return }
+            guard let path = m["path"] as? String, SafePath.okLive(path), let text = m["text"] as? String, let rev = (m["rev"] as? NSNumber)?.intValue else { return }
             let f = files[path] ?? FileState(text, rev: rev)
             files[path] = f
             f.confirmed = text; f.text = text; f.rev = rev; f.out = nil; f.buf = nil
             if let doc = f.doc { doc.replaceFromRemote(text); scheduleSave(path, f) } else { scheduleWrite(path, f) }
         case "added":
-            guard let path = m["path"] as? String, let text = m["text"] as? String else { return }
+            guard let path = m["path"] as? String, SafePath.okLive(path), let text = m["text"] as? String else { return }
             if let f = files[path] { f.rev = (m["rev"] as? NSNumber)?.intValue ?? 0; return }
             let f = FileState(text, rev: (m["rev"] as? NSNumber)?.intValue ?? 0)
             files[path] = f
@@ -344,7 +344,7 @@ final class LiveSession: ObservableObject {
             defer { if scoped { parent.stopAccessingSecurityScopedResource() } }
             do {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                for (path, v) in server {
+                for (path, v) in server where SafePath.okLive(path) {
                     let url = folder.appendingPathComponent(path)
                     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try (v["text"] as? String ?? "").write(to: url, atomically: true, encoding: .utf8)
@@ -363,7 +363,7 @@ final class LiveSession: ObservableObject {
             }
         }
 
-        for (path, v) in server {
+        for (path, v) in server where SafePath.okLive(path) {
             let text = v["text"] as? String ?? ""
             let rev = (v["rev"] as? NSNumber)?.intValue ?? 0
             let ids = Set(v["ids"] as? [String] ?? [])

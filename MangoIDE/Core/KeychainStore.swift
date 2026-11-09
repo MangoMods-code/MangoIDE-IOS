@@ -21,6 +21,11 @@ enum KeychainStore {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Re-saves existing items with the current protection level (older builds allowed backups).
+    static func tightenExisting(_ accounts: [String]) {
+        for a in accounts { if let v = get(a), !v.isEmpty { set(v, for: a) } }
+    }
+
     static func set(_ value: String, for account: String) {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -32,12 +37,14 @@ enum KeychainStore {
             return
         }
         let data = Data(value.utf8)
-        let update: [String: Any] = [kSecValueData as String: data]
+        // ThisDeviceOnly: never leaves this device, not even in an encrypted backup restored elsewhere.
+        let update: [String: Any] = [kSecValueData as String: data,
+                                     kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
         let status = SecItemUpdate(base as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
             var add = base
             add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             SecItemAdd(add as CFDictionary, nil)
         }
     }

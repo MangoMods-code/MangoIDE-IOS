@@ -482,14 +482,16 @@ enum RunService {
 enum MarkdownHTML {
     static func escape(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
     static func inline(_ s: String) -> String {
         var t = escape(s)
         let rules: [(String, String)] = [
             ("`([^`]+)`", "<code>$1</code>"),
-            ("!\\[([^\\]]*)\\]\\(([^)]+)\\)", "<img alt=\"$1\" src=\"$2\">"),
-            ("\\[([^\\]]+)\\]\\(([^)]+)\\)", "<a href=\"$2\">$1</a>"),
+            // Links that would run code (javascript:, data:, vbscript:) are left as plain text.
+            ("!\\[([^\\]]*)\\]\\(((?!\\s*(?i:javascript|data|vbscript|file):)[^)]+)\\)", "<img alt=\"$1\" src=\"$2\">"),
+            ("\\[([^\\]]+)\\]\\(((?!\\s*(?i:javascript|data|vbscript|file):)[^)]+)\\)", "<a href=\"$2\">$1</a>"),
             ("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>"),
             ("__([^_]+)__", "<strong>$1</strong>"),
             ("(?<![*\\w])\\*([^*]+)\\*(?!\\*)", "<em>$1</em>"),

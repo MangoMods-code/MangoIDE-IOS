@@ -56,7 +56,7 @@ module.exports = function cloud({ db, send, readBody, isPro, extraLive }) {
     if (!s || s.length > 200 || s.includes("/") || s === "." || s === ".." || /[\u0000-\u001f]/.test(s)) throw new CloudError(400, "Bad project name.");
     return s;
   };
-  const okPath = (p) => typeof p === "string" && p.length > 0 && p.length < 1000 && !p.startsWith("/") &&
+  const okPath = (p) => typeof p === "string" && p.length > 0 && p.length < 1000 && !p.startsWith("/") && !p.includes("\\") && !p.includes("\0") &&
     !p.split("/").some((s) => s === "" || s === "." || s === "..");
 
   async function used(userId) {

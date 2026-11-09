@@ -9,7 +9,10 @@ const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
 const ot = require("./ot");
 
-module.exports = function collab({ db, send, readBody, isPro, authUser, html, appScheme }) {
+module.exports = function collab({ db, send, readBody, isPro, authUser, html, appScheme, overLimit }) {
+  const MAX_SESSION_BYTES = 30 * 1024 * 1024;
+  // Guessing session codes: a handful of wrong codes and that account has to wait.
+  const guessing = (u) => overLimit(`collabguess:${u.id}`, 25, 10 * 60 * 1000);
   const MAX_FILES = 1500, MAX_FILE = 1024 * 1024, MAX_TOTAL = 20 * 1024 * 1024, MAX_PEOPLE = 12;
   const HISTORY = 1000, IDLE_MS = 15 * 60 * 1000, SHARE_DAYS = 30;
   const COLORS = ["#ff9f0a", "#30d158", "#0a84ff", "#ff375f", "#bf5af2", "#64d2ff", "#ffd60a", "#ff6b3d", "#5e5ce6", "#66d4cf", "#ac8e68", "#ff8fab"];
@@ -19,8 +22,10 @@ module.exports = function collab({ db, send, readBody, isPro, authUser, html, ap
   class CError extends Error { constructor(status, message, extra) { super(message); this.status = status; this.extra = extra; } }
 
   const newCode = (n) => { let s = ""; const b = crypto.randomBytes(n); for (const x of b) s += ALPHABET[x % ALPHABET.length]; return s; };
-  const okPath = (p) => typeof p === "string" && p.length > 0 && p.length < 1000 && !p.startsWith("/") &&
+  const okPath = (p) => typeof p === "string" && p.length > 0 && p.length < 1000 && !p.startsWith("/") && !p.includes("\\") && !p.includes("\0") &&
     !p.split("/").some((s) => s === "" || s === "." || s === "..");
+  // Live sessions never touch the app's private folder (agent memory, run settings) or git internals.
+  const liveOk = (p) => okPath(p) && !/^(\.mango|\.git)(\/|$)/i.test(p);
   const json = async (req, limit) => JSON.parse((await readBody(req, limit)).toString("utf8") || "{}");
 
   // ---------- Live sessions ----------
@@ -35,7 +40,7 @@ module.exports = function collab({ db, send, readBody, isPro, authUser, html, ap
     const docs = new Map();
     let total = 0;
     for (const [p, text] of files) {
-      if (!okPath(p) || typeof text !== "string" || text.length > MAX_FILE) continue;
+      if (!liveOk(p) || typeof text !== "string" || text.length > MAX_FILE) continue;
       total += text.length;
       docs.set(p, { text, rev: 0, history: [], ids: [] });
     }
@@ -107,7 +112,10 @@ module.exports = function collab({ db, send, readBody, isPro, authUser, html, ap
         return;
       }
       case "add": {
-        if (!okPath(msg.path) || typeof msg.text !== "string" || msg.text.length > MAX_FILE) return;
+        if (!liveOk(msg.path) || typeof msg.text !== "string" || msg.text.length > MAX_FILE) return;
+        let total = msg.text.length;
+        for (const x of s.docs.values()) total += x.text.length;
+        if (total > MAX_SESSION_BYTES) return reply({ t: "error", message: "This session is full." });
         const d = s.docs.get(msg.path);
         if (d) return reply({ t: "resync", path: msg.path, text: d.text, rev: d.rev });
         if (s.docs.size >= MAX_FILES) return reply({ t: "error", message: "This session has the maximum number of files." });
@@ -134,7 +142,7 @@ module.exports = function collab({ db, send, readBody, isPro, authUser, html, ap
         const s = sessions.get(String(url.searchParams.get("code") || "").toUpperCase());
         const refuse = (status, text) => { socket.write(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); socket.destroy(); };
         if (!u) return refuse(401, "Unauthorized");
-        if (!s) return refuse(404, "Not Found");
+        if (!s) { guessing(u); return refuse(404, "Not Found"); }
         const distinctUsers = new Set([...s.clients.values()].map((c) => c.userId));
         if (!distinctUsers.has(u.id) && distinctUsers.size >= MAX_PEOPLE) return refuse(403, "Full");
         wss.handleUpgrade(req, socket, head, (ws) => {
@@ -291,6 +299,7 @@ module.exports = function collab({ db, send, readBody, isPro, authUser, html, ap
       if (req.method === "POST" && p === "/collab/start") { await start(req, res, u); return true; }
       if (req.method === "GET" && p === "/collab/info") {
         const s = sessions.get(String(url.searchParams.get("code") || "").toUpperCase());
+        if (!s && guessing(u)) throw new CError(429, "Too many wrong codes. Try again in a few minutes.");
         if (!s) throw new CError(404, "That session has ended or the code is wrong.");
         send(res, 200, { code: s.code, name: s.name, host: s.hostLogin, people: people(s).length, files: s.docs.size });
         return true;

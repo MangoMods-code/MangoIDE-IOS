@@ -93,7 +93,7 @@ final class AppSettings: ObservableObject {
     @Published var saveBeforeRun: Bool { didSet { put(saveBeforeRun, "saveBeforeRun") } }
     @Published var showConsoleOnRun: Bool { didSet { put(showConsoleOnRun, "showConsoleOnRun") } }
     @Published var runnerURL: String { didSet { put(runnerURL, "runnerURL"); KeychainStore.set(runnerURL, for: "runnerURL") } }
-    @Published var runnerKey: String { didSet { put(runnerKey, "runnerKey"); KeychainStore.set(runnerKey, for: "runnerKey") } }
+    @Published var runnerKey: String { didSet { KeychainStore.set(runnerKey, for: "runnerKey") } }
     @Published var runnerTimeout: Double { didSet { put(runnerTimeout, "runnerTimeout") } }
     @Published var showExecutionTime: Bool { didSet { put(showExecutionTime, "showExecutionTime") } }
     @Published var jsStrictMode: Bool { didSet { put(jsStrictMode, "jsStrictMode") } }
@@ -198,7 +198,10 @@ final class AppSettings: ObservableObject {
         runnerURL = savedRunner.isEmpty ? AppSettings.defaultRunnerURL : savedRunner
         let savedKey = KeychainStore.get("runnerKey") ?? AppSettings.v("runnerKey", "")
         runnerKey = savedKey
+        // Secrets belong in the Keychain only: remove the copy older builds left in plain settings.
         if !savedKey.isEmpty && KeychainStore.get("runnerKey") == nil { KeychainStore.set(savedKey, for: "runnerKey") }
+        AppSettings.d.removeObject(forKey: "runnerKey")
+        KeychainStore.tightenExisting(["runnerKey", "runnerURL", "anthropicKey", "accountToken"])
         runnerTimeout = AppSettings.v("runnerTimeout", 20.0)
         showExecutionTime = AppSettings.v("showExecutionTime", true)
         jsStrictMode = AppSettings.v("jsStrictMode", false)
@@ -220,7 +223,7 @@ final class AppSettings: ObservableObject {
 
     func resetAll() {
         if let id = Bundle.main.bundleIdentifier {
-            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || $0.key.hasPrefix("cloud.") || $0.key.hasPrefix("live.") || $0.key.hasPrefix("account.") || $0.key.hasPrefix("welcomePrompt.") || ["runnerURL", "runnerKey", "backgroundKind", "backgroundFile"].contains($0.key) }
+            let keep = AppSettings.d.dictionaryRepresentation().filter { $0.key.hasPrefix("ws.") || $0.key.hasPrefix("ext.") || $0.key.hasPrefix("session.") || $0.key.hasPrefix("cloud.") || $0.key.hasPrefix("live.") || $0.key.hasPrefix("account.") || $0.key.hasPrefix("welcomePrompt.") || ["runnerURL", "backgroundKind", "backgroundFile"].contains($0.key) }
             AppSettings.d.removePersistentDomain(forName: id)
             for (k, val) in keep { AppSettings.d.set(val, forKey: k) }
         }
