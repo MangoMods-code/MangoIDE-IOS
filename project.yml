@@ -53,6 +53,10 @@ targets:
         CFBundleExecutable: $(EXECUTABLE_NAME)
         CFBundlePackageType: APPL
         LSRequiresIPhoneOS: true
+        # mangoide:// links: back from checkout, live session invites, shared projects.
+        CFBundleURLTypes:
+          - CFBundleURLName: app.mangoide.links
+            CFBundleURLSchemes: [mangoide]
         UILaunchScreen: {}
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true

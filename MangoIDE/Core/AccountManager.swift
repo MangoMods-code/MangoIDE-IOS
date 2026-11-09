@@ -28,6 +28,7 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
     @Published var message: String?
 
     private var authSession: ASWebAuthenticationSession?
+    private var payTask: ASWebAuthenticationSession?
     private var pendingState: String?
 
     var token: String? { KeychainStore.get("accountToken") }
@@ -138,6 +139,8 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
 
     private func openCheckout(_ body: [String: Any], path: String = "billing/checkout") {
         busy = true
+        var body = body
+        body["inApp"] = true
         request(path, method: "POST", body: body) { [weak self] r in
             guard let self else { return }
             self.busy = false
@@ -145,13 +148,33 @@ final class AccountManager: NSObject, ObservableObject, ASWebAuthenticationPrese
             case .success(let (data, http)):
                 if http.statusCode == 200, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let s = json["url"] as? String, let url = URL(string: s), url.host?.hasSuffix("stripe.com") == true {
-                    UIApplication.shared.open(url)
+                    self.presentStripe(url)
                 } else {
                     self.message = self.errorText(data)
                 }
             case .failure(let e): self.message = e.localizedDescription
             }
         }
+    }
+
+    /// Stripe's own page, shown inside MangoIDE. When you finish (or cancel), Stripe sends you to a
+    /// mangoide:// address and the window closes by itself. Private browsing, so nothing is left behind.
+    private func presentStripe(_ url: URL) {
+        let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "mangoide") { [weak self] callback, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.payTask = nil
+                let status = callback.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "status" }?.value }
+                if status == "success" { self.message = "Thanks! Your purchase is being applied." }
+                // Stripe tells our server a moment after paying, so look a few times.
+                self.refresh()
+                for delay in [2.0, 5.0, 10.0] { DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self.refresh() } }
+            }
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = true
+        payTask = session
+        if !session.start() { UIApplication.shared.open(url) }
     }
 
     func buyPro() { openCheckout(["kind": "pro"]) }

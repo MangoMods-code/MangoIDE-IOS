@@ -70,12 +70,44 @@ async function migrate() {
       ref TEXT UNIQUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS oauth_states (
       state TEXT PRIMARY KEY,
       app_state TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+}
+
+// The first time the server starts with live Stripe keys after testing, test purchases are cleared:
+// test credit, test Pro and test customer records must never carry over into real money.
+async function switchStripeMode() {
+  if (!stripe) return;
+  const mode = STRIPE_SECRET_KEY.startsWith("sk_live") || STRIPE_SECRET_KEY.startsWith("rk_live") ? "live" : "test";
+  const prev = (await db.query("SELECT value FROM app_state WHERE key = 'stripe_mode'")).rows[0]?.value;
+  if (prev === mode) return;
+  if (mode === "live") {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const users = await client.query("UPDATE users SET stripe_customer_id = NULL, credits_micro = 0, pro_status = 'none', pro_until = NULL RETURNING id");
+      await client.query("DELETE FROM ledger");
+      await client.query("INSERT INTO app_state (key, value) VALUES ('stripe_mode', 'live') ON CONFLICT (key) DO UPDATE SET value = 'live'");
+      await client.query("COMMIT");
+      console.log(`Stripe switched to LIVE: cleared test purchases for ${users.rowCount} accounts.`);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    // Going back to test never touches real data; old live customers are simply replaced as needed.
+    await db.query("INSERT INTO app_state (key, value) VALUES ('stripe_mode', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [mode]);
+  }
 }
 
 // ---------- Helpers ----------
@@ -111,6 +143,18 @@ function html(res, status, title, body) {
 <style>body{font-family:-apple-system,sans-serif;background:#1c1a24;color:#eee;display:grid;place-items:center;min-height:90vh;text-align:center;padding:24px}
 a{display:inline-block;margin-top:18px;background:#ff9a1a;color:#111;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:600}</style>
 <div><h1>🥭 ${title}</h1>${body}</div>`);
+}
+
+// Plain readable page (policies, home). Same locked-down headers as html().
+function htmlPage(res, title, body) {
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300", "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:" });
+  res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;background:#1c1a24;color:#e9e6f0;margin:0;line-height:1.6}
+main{max-width:720px;margin:0 auto;padding:32px 20px 60px}h1{font-size:28px;margin:0 0 6px}h2{font-size:19px;margin:28px 0 6px}
+a{color:#ffb347}nav{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 26px;font-size:15px}.muted{color:#a8a3b5;font-size:14px}
+.card{background:#26232f;border-radius:14px;padding:16px 18px;margin:14px 0}li{margin:4px 0}</style>
+<main><nav><a href="/">MangoIDE</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refunds">Refunds</a></nav>${body}</main></html>`);
 }
 
 function redirect(res, location) {
@@ -224,7 +268,11 @@ async function githubCallback(req, res, url) {
 // ---------- Payments (Stripe Checkout) ----------
 
 async function ensureCustomer(u) {
-  if (u.stripe_customer_id) return u.stripe_customer_id;
+  if (u.stripe_customer_id) {
+    // A customer from the other mode (test vs live) or one deleted in Stripe: start a fresh one.
+    try { const c = await stripe.customers.retrieve(u.stripe_customer_id); if (!c.deleted) return c.id; }
+    catch (e) { if (e?.code !== "resource_missing") throw e; }
+  }
   const c = await stripe.customers.create({ description: `MangoIDE user ${u.login}`, metadata: { user_id: String(u.id), github_login: u.login } });
   await db.query("UPDATE users SET stripe_customer_id = $1 WHERE id = $2", [c.id, u.id]);
   return c.id;
@@ -235,11 +283,13 @@ async function checkout(req, res, u) {
   if (rateLimited(req, "checkout", 20, 10 * 60 * 1000)) return send(res, 429, { message: "Too many attempts. Try again in a few minutes." });
   const body = JSON.parse((await readBody(req, 10000)).toString() || "{}");
   const customer = await ensureCustomer(u);
+  // Newer apps open checkout inside MangoIDE and close it automatically when it's done.
+  const back = body.inApp ? "return" : "done";
   const common = {
     customer,
     client_reference_id: String(u.id),
-    success_url: `${PUBLIC_URL}/billing/done?status=success`,
-    cancel_url: `${PUBLIC_URL}/billing/done?status=cancel`,
+    success_url: `${PUBLIC_URL}/billing/${back}?status=success`,
+    cancel_url: `${PUBLIC_URL}/billing/${back}?status=cancel`,
   };
   let session;
   if (body.kind === "pro") {
@@ -253,6 +303,7 @@ async function checkout(req, res, u) {
     });
   } else if (body.kind === "topup") {
     const cents = Number(body.cents);
+    if (!ANTHROPIC_KEY) return send(res, 503, { message: "AI credit isn't available yet. Nothing was charged." });
     if (!TOPUPS.includes(cents)) return send(res, 400, { message: "Pick one of the top-up amounts." });
     session = await stripe.checkout.sessions.create({
       ...common,
@@ -270,8 +321,15 @@ async function checkout(req, res, u) {
 async function portal(req, res, u) {
   if (!stripe) return send(res, 503, { message: "Payments aren't set up on the server yet." });
   if (!u.stripe_customer_id) return send(res, 400, { message: "No purchases yet." });
-  const p = await stripe.billingPortal.sessions.create({ customer: u.stripe_customer_id, return_url: `${PUBLIC_URL}/billing/done?status=portal` });
-  send(res, 200, { url: p.url });
+  const body = JSON.parse((await readBody(req, 10000)).toString() || "{}");
+  try {
+    const p = await stripe.billingPortal.sessions.create({ customer: u.stripe_customer_id,
+      return_url: `${PUBLIC_URL}/billing/${body.inApp ? "return" : "done"}?status=portal` });
+    send(res, 200, { url: p.url });
+  } catch (e) {
+    if (e?.code === "resource_missing") return send(res, 400, { message: "No purchases yet." });
+    throw e;
+  }
 }
 
 async function addLedger(userId, deltaMicro, reason, ref) {
@@ -379,6 +437,7 @@ async function ai(req, res, u) {
 
 // ---------- GitHub (repos, clone, pull, push) ----------
 
+const policies = require("./policies")({ html: htmlPage, PRO_PRICE_CENTS, TOPUPS, AI_MARKUP });
 const githubRoutes = require("./github")({ decrypt, send, readBody, isPro });
 const collab = require("./collab")({ db, send, readBody, isPro, authUser, html, appScheme: APP_SCHEME });
 const cloudRoutes = require("./cloud")({ db, send, readBody, isPro, extraLive: collab.liveShas });
@@ -388,10 +447,17 @@ const cloudRoutes = require("./cloud")({ db, send, readBody, isPro, extraLive: c
 async function route(req, res) {
   const url = new URL(req.url, PUBLIC_URL || "http://localhost");
   const p = url.pathname.replace(/\/+$/, "") || "/";
-  if (req.method === "GET" && (p === "/" || p === "/health")) return send(res, 200, { ok: true, name: "MangoIDE accounts" });
+  if (req.method === "GET" && p === "/health") return send(res, 200, { ok: true, name: "MangoIDE accounts" });
   if (req.method === "GET" && p === "/auth/github/start") return githubStart(req, res, url);
   if (req.method === "GET" && p === "/auth/github/callback") return githubCallback(req, res, url);
   if (req.method === "POST" && p === "/stripe/webhook") return webhook(req, res);
+  if (req.method === "GET" && p === "/billing/return") {
+    // Hands control back to the app, which closes the checkout window.
+    const st = ["success", "cancel", "portal"].includes(url.searchParams.get("status")) ? url.searchParams.get("status") : "done";
+    return redirect(res, `${APP_SCHEME}://billing?status=${st}`);
+  }
+  if (req.method === "GET" && ["/terms", "/privacy", "/refunds"].includes(p)) return policies.page(res, p.slice(1));
+  if (req.method === "GET" && p === "/") return policies.home(res);
   if (req.method === "GET" && p === "/billing/done") {
     const s = url.searchParams.get("status");
     const title = s === "success" ? "Payment complete" : s === "portal" ? "All set" : "Payment cancelled";
@@ -426,7 +492,7 @@ async function route(req, res) {
   send(res, 404, { message: "Not found" });
 }
 
-migrate().then(() => cloudRoutes.migrate()).then(() => collab.migrate()).then(() => {
+migrate().then(() => switchStripeMode()).then(() => cloudRoutes.migrate()).then(() => collab.migrate()).then(() => {
   const server = http.createServer((req, res) => {
     route(req, res).catch((e) => {
       console.error(e);

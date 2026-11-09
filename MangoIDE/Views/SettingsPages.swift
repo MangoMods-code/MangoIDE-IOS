@@ -94,6 +94,7 @@ struct ProView: View {
             } header: { Text("Always free") } footer: {
                 Text("If Pro ends, nothing is deleted: you can still download your cloud backups and keep every file.")
             }
+            PolicyLinks()
         }
         .navigationTitle("MangoIDE Pro")
         .onAppear { account.refresh() }
@@ -125,18 +126,19 @@ struct CreditView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(!p.payments || account.busy)
+                    .disabled(!p.payments || !p.aiCredits || account.busy)
                     if !p.payments { PaymentsOffNote() }
                     if p.payments { Button("Receipts & Refunds") { account.manageBilling() } }
                 } header: { Text("AI Credit") } footer: {
                     Text("Prepaid, so you're never charged after the fact. When it runs out, the agent just stops.")
                 }
                 if !p.aiCredits {
-                    Section { Label("AI credit isn't switched on on the server yet.", systemImage: "info.circle").foregroundStyle(.secondary) }
+                    Section { Label("AI credit isn't available yet, so top-ups are turned off. Nothing can be charged.", systemImage: "info.circle").foregroundStyle(.secondary) }
                 }
             } else {
                 SignInPrompt(why: "Sign in with GitHub to buy AI credit.")
             }
+            PolicyLinks()
             Section {
                 LabeledContent("Agent uses", value: settings.agentAPIKey.isEmpty ? "AI credit" : "Your own key")
                 NavigationLink("Agent Settings") { AgentSettings() }
@@ -351,5 +353,16 @@ struct StorageSettings: View {
             if v?.isRegularFile == true { total += Int64(v?.totalFileAllocatedSize ?? 0) }
         }
         return total
+    }
+}
+
+/// Terms, privacy and refunds, hosted on the MangoIDE server.
+struct PolicyLinks: View {
+    var body: some View {
+        Section {
+            Link(destination: AccountManager.server.appendingPathComponent("terms")) { Label("Terms of Service", systemImage: "doc.text") }
+            Link(destination: AccountManager.server.appendingPathComponent("privacy")) { Label("Privacy Policy", systemImage: "hand.raised") }
+            Link(destination: AccountManager.server.appendingPathComponent("refunds")) { Label("Refund Policy", systemImage: "arrow.uturn.backward.circle") }
+        } header: { Text("Policies") }
     }
 }
