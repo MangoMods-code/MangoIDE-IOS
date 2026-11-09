@@ -55,7 +55,7 @@ struct MangoIDEApp: App {
 enum AppSheet: Identifiable {
     case newFile(URL), newFolder(URL), newProject, settings, extensions, snippets
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
-    case projects, pickProjectsFolder, agent, welcome
+    case projects, pickProjectsFolder, agent, welcome, github
 
     var id: String {
         switch self {
@@ -74,6 +74,7 @@ enum AppSheet: Identifiable {
         case .pickProjectsFolder: return "pickProjectsFolder"
         case .agent: return "agent"
         case .welcome: return "welcome"
+        case .github: return "github"
         }
     }
 }

@@ -128,6 +128,7 @@ struct RootView: View {
             case .snippets: SnippetsSheet()
             case .projects: ProjectsSheet()
             case .welcome: WelcomeSignInView()
+            case .github: GitHubView()
             case .agent:
                 if #available(iOS 16.4, *) {
                     AgentView()
@@ -205,6 +206,7 @@ struct TopBar: View {
                 Button { router.show(.importFiles(nil)) } label: { Label("Import Files…", systemImage: "square.and.arrow.down") }
                 Button { router.show(.linkFolder) } label: { Label("Open Folder…", systemImage: "folder") }
                 Button { router.show(.importArchive) } label: { Label("Import ZIP / RAR…", systemImage: "doc.zipper") }
+                Button { router.show(.github) } label: { Label("GitHub…", systemImage: "arrow.triangle.branch") }
             }
             Section {
                 Button { router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects) } label: {

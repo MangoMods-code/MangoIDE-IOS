@@ -374,6 +374,10 @@ async function ai(req, res, u) {
   }
 }
 
+// ---------- GitHub (repos, clone, pull, push) ----------
+
+const githubRoutes = require("./github")({ decrypt, send, readBody, isPro });
+
 // ---------- Routes ----------
 
 async function route(req, res) {
@@ -410,6 +414,7 @@ async function route(req, res) {
   if (req.method === "POST" && p === "/billing/checkout") return checkout(req, res, u);
   if (req.method === "POST" && p === "/billing/portal") return portal(req, res, u);
   if (req.method === "POST" && p === "/ai/messages") return ai(req, res, u);
+  if (p.startsWith("/github/") && await githubRoutes(req, res, u, url, p)) return;
   send(res, 404, { message: "Not found" });
 }
 
