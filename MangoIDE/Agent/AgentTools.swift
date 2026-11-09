@@ -19,7 +19,15 @@ final class AgentToolbox {
 
     // MARK: Tool definitions sent to the model
 
-    static let definitions: [[String: Any]] = [
+    /// The cloud workspace tool is only offered when the toggle is on.
+    static func definitions(cloud: Bool) -> [[String: Any]] {
+        cloud ? baseDefinitions + [tool("run_command",
+            "Run a shell command (bash) in your cloud workspace: a Linux copy of this project on the user's server, synced from the phone right before each command. Use it to install packages, run the project or its tests, build, and use git. Files the command creates or changes come back to the phone automatically (except node_modules, build and similar folders).",
+            ["command": str("The bash command, run from the project root."), "timeout_seconds": int("Time limit, 5-600 (default 120).")], ["command"])]
+        : baseDefinitions
+    }
+
+    static let baseDefinitions: [[String: Any]] = [
         tool("list_files", "List files and folders in the project (skips node_modules, .git, build folders). Paths are relative to the project root.",
              ["path": str("Folder to list, relative to the project root. Empty for the root."), "depth": int("How many levels deep (1-6, default 3).")], []),
         tool("read_file", "Read a text file with line numbers. Use start_line/end_line for big files.",
@@ -56,7 +64,7 @@ final class AgentToolbox {
             if askForEverything { return true }
             guard let p = input["path"] as? String, let u = try? resolve(p) else { return false }
             return FileManager.default.fileExists(atPath: u.path)   // overwriting an existing file
-        case "edit_file", "rename_file": return askForEverything
+        case "edit_file", "rename_file", "run_command": return askForEverything
         default: return false
         }
     }
@@ -65,6 +73,7 @@ final class AgentToolbox {
     func describe(_ name: String, _ input: [String: Any]) -> String {
         let p = input["path"] as? String ?? ""
         switch name {
+        case "run_command": return "$ \(input["command"] as? String ?? "")"
         case "list_files": return "Looked at files in \(p.isEmpty ? "the project" : p)"
         case "read_file": return "Read \(p)"
         case "search": return "Searched for “\(input["query"] as? String ?? "")”"
@@ -170,6 +179,7 @@ final class AgentToolbox {
                 Workspace.shared.refresh()
                 completion("Renamed \(relative(from)) to \(relative(to)). (Rename can't be undone automatically.)", false)
             case "run_file": runFile(input, completion: completion)
+            case "run_command": runCommand(input, completion: completion)
             case "remember": completion(try remember(input["note"] as? String ?? ""), false)
             case "update_overview": completion(try updateOverview(input["overview"] as? String ?? ""), false)
             default: completion("Unknown tool \(name).", true)
@@ -263,6 +273,121 @@ final class AgentToolbox {
             }
         } catch {
             completion("Error: \(error.localizedDescription)", true)
+        }
+    }
+
+    // MARK: Cloud workspace (synced copy on the runner server)
+
+    /// What was last uploaded, so each sync only sends what changed.
+    private var synced: [String: (Date, Int)] = [:]
+    private var didInitialSync = false
+
+    private var workspaceID: String {
+        let name = root.lastPathComponent.replacingOccurrences(of: " ", with: "-")
+        var h: UInt64 = 5381
+        for b in root.standardizedFileURL.path.utf8 { h = (h &* 33) ^ UInt64(b) }
+        return "\(name)-\(String(h, radix: 36))"
+    }
+
+    private func serverURL(_ path: String) -> URL? {
+        RunService.runnerEndpoint(AppSettings.shared.runnerURL, path: "x")?
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(path)
+    }
+
+    private func post(_ path: String, _ body: [String: Any], timeout: TimeInterval, completion: @escaping ([String: Any]?, String?) -> Void) {
+        guard let url = serverURL(path) else { completion(nil, "Set your runner server in Settings › Run first."); return }
+        var req = URLRequest(url: url, timeoutInterval: timeout)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        RunService.authorize(&req)
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: req) { data, _, error in
+            DispatchQueue.main.async {
+                if let error { completion(nil, "Couldn't reach the server: \(error.localizedDescription)"); return }
+                guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    completion(nil, "The server sent back something unexpected."); return
+                }
+                if let msg = json["message"] as? String, json["stdout"] == nil, json["written"] == nil { completion(nil, msg); return }
+                completion(json, nil)
+            }
+        }.resume()
+    }
+
+    /// Uploads new/changed files (and removals) since the last sync. Open, unsaved files are sent as edited.
+    private func syncUp(completion: @escaping (String?) -> Void) {
+        var files: [[String: Any]] = []
+        var seen = Set<String>()
+        var total = 0
+        var tooBig = false
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+        if let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys), options: []) {
+            for case let u as URL in en {
+                let name = u.lastPathComponent
+                if SidebarModel.heavyFolders.contains(name) || name == ".DS_Store" { en.skipDescendants(); continue }
+                guard let v = try? u.resourceValues(forKeys: keys), v.isDirectory != true else { continue }
+                let rel = relative(u)
+                seen.insert(rel)
+                let size = v.fileSize ?? 0
+                let date = v.contentModificationDate ?? .distantPast
+                let doc = openDocument(u)
+                let dirty = doc?.isDirty == true
+                if !dirty, let prev = synced[rel], prev.0 == date, prev.1 == size, didInitialSync { continue }
+                if size > 5_000_000 { continue }
+                let data: Data? = dirty ? Data(doc!.text.utf8) : try? Data(contentsOf: u)
+                guard let data else { continue }
+                total += data.count
+                if total > 40_000_000 { tooBig = true; break }
+                files.append(["path": rel, "content": data.base64EncodedString()])
+                synced[rel] = (date, size)
+            }
+        }
+        if tooBig { completion("The project is too big to sync (over 40 MB, not counting dependency folders)."); return }
+        let removed = didInitialSync ? synced.keys.filter { !seen.contains($0) } : []
+        for r in removed { synced[r] = nil }
+        let body: [String: Any] = ["project": workspaceID, "reset": !didInitialSync, "files": files, "delete": removed]
+        post("workspace/sync", body, timeout: 120) { [weak self] _, err in
+            if err == nil { self?.didInitialSync = true }
+            completion(err)
+        }
+    }
+
+    private func runCommand(_ input: [String: Any], completion: @escaping (String, Bool) -> Void) {
+        let command = (input["command"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.isEmpty else { completion("Empty command.", true); return }
+        let timeout = max(5, min(600, input["timeout_seconds"] as? Int ?? 120))
+        syncUp { [weak self] err in
+            guard let self else { return }
+            if let err { completion("Error: \(err)", true); return }
+            self.post("workspace/exec", ["project": self.workspaceID, "command": command, "timeout": timeout], timeout: TimeInterval(timeout + 30)) { json, err in
+                if let err { completion("Error: \(err)", true); return }
+                guard let json else { completion("Error: no result", true); return }
+                var out = ""
+                if let o = json["stdout"] as? String, !o.isEmpty { out += o }
+                if let e = json["stderr"] as? String, !e.isEmpty { out += (out.isEmpty ? "" : "\n") + "[stderr]\n" + e }
+                let code = json["code"] as? Int
+                if let sig = json["signal"] as? String { out += "\n[stopped: \(sig)]" } else { out += "\n[exit code \(code ?? -1)]" }
+                // Bring changed files back to the phone (with undo).
+                var updated: [String] = []
+                for f in json["changed"] as? [[String: Any]] ?? [] {
+                    guard let rel = f["path"] as? String, let b64 = f["content"] as? String,
+                          let data = Data(base64Encoded: b64), let url = try? self.resolve(rel) else { continue }
+                    let text = String(decoding: data, as: UTF8.self)
+                    if let current = try? self.readText(url), current == text { continue }
+                    if (try? self.writeText(url, text)) != nil {
+                        updated.append(rel)
+                        if let v = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]) {
+                            self.synced[rel] = (v.contentModificationDate ?? .distantPast, v.fileSize ?? 0)
+                        }
+                    }
+                }
+                if !updated.isEmpty {
+                    Workspace.shared.refresh()
+                    out += "\nFiles updated on the phone: " + updated.joined(separator: ", ")
+                }
+                if json["truncated"] as? Bool == true { out += "\n(Some changed files were too many/large to copy back.)" }
+                completion(String(out.suffix(20_000)), (code ?? 0) != 0)
+            }
         }
     }
 

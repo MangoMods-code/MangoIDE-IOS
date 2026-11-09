@@ -135,7 +135,7 @@ final class AgentSession: ObservableObject {
     }
 
     private func requestBody() -> [String: Any] {
-        var tools = AgentToolbox.definitions
+        var tools = AgentToolbox.definitions(cloud: AppSettings.shared.agentCloudWorkspace)
         if var last = tools.last { last["cache_control"] = ["type": "ephemeral"]; tools[tools.count - 1] = last }
         // Cache everything up to the newest message so each step only pays full price for what's new.
         var msgs = messages
@@ -169,7 +169,7 @@ final class AgentSession: ObservableObject {
         How to work:
         - Look before you change: use list_files, read_file and search. Never guess what a file contains.
         - Make focused changes with edit_file. Use write_file for new files or full rewrites.
-        - Test with run_file when it helps.
+        - Test with run_file when it helps.\(AppSettings.shared.agentCloudWorkspace ? "\n        - You also have run_command: a Linux workspace with a synced copy of this project (Python, Node, Swift, Go, Rust, Java and more installed). Use it for installs, running the project, tests, builds and git. Keep editing files with edit_file/write_file; they sync before each command." : "")
         - Keep your messages short and plain; the user reads them on a phone. Say what you changed in a sentence or two.
         - Deletes and overwrites ask the user first. If they decline, don't retry the same thing.
 
@@ -245,9 +245,10 @@ final class AgentSession: ObservableObject {
             tb.run(name, input) { [weak self] output, isError in
                 guard let self, !self.cancelled else { return }
                 let quiet = ["list_files", "read_file", "search"].contains(name)
+                let showsOutput = name == "run_file" || name == "run_command"
                 let path = input["path"] as? String ?? input["to"] as? String
                 if !quiet || isError {
-                    self.items.append(Item(kind: .tool, text: isError ? "\(title) — \(output.replacingOccurrences(of: "Error: ", with: ""))" : (name == "run_file" ? "\(title)\n\(output.prefix(600))" : title),
+                    self.items.append(Item(kind: .tool, text: isError ? "\(title) — \(output.replacingOccurrences(of: "Error: ", with: ""))" : (showsOutput ? "\(title)\n\(output.suffix(600))" : title),
                                            path: path, failed: isError))
                 } else {
                     self.items.append(Item(kind: .tool, text: title, path: name == "read_file" ? path : nil))

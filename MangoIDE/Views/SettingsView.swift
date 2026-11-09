@@ -371,6 +371,11 @@ struct AgentSettings: View {
                 }
             } footer: { Text("Haiku is cheapest (about 2¢ for a small job), Sonnet is the best value (about 25¢), Opus is strongest (about 50¢).") }
             Section {
+                Toggle("Cloud Workspace", isOn: $s.agentCloudWorkspace)
+            } header: { Text("Beta") } footer: {
+                Text("Gives the agent a Linux copy of your project on your runner server, so it can install packages, run whole projects and tests, build and use git. Files it changes there come back to your phone (with undo). Editing works the same with this on or off. Uses a bit more AI credit per job.")
+            }
+            Section {
                 Picker("Ask Before", selection: $s.agentApproval) {
                     Text("Deletes & overwrites").tag("risky")
                     Text("Every change").tag("all")

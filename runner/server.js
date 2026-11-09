@@ -185,6 +185,95 @@ function send(res, status, obj) {
   res.end(data);
 }
 
+// ---------- Cloud workspaces for the MangoIDE agent ----------
+// A synced copy of a project where the agent can run real commands (installs, tests, builds, git).
+const WS_ROOT = process.env.WORKSPACE_ROOT || path.join(os.tmpdir(), "workspaces");
+const WS_HEAVY = new Set(["node_modules", ".git", "build", "dist", ".cache", "target", "__pycache__", ".venv", "venv", ".gradle", "DerivedData", ".build", ".next", ".npm", ".zig"]);
+const WS_MAX_BODY = 60 * 1024 * 1024;
+
+function wsDir(id) {
+  const safe = String(id || "").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 100) || "default";
+  return path.join(WS_ROOT, safe);
+}
+
+function wsPath(dir, rel) {
+  const clean = String(rel || "").replace(/\\/g, "/").split("/").filter((p) => p && p !== "." && p !== "..").join("/");
+  if (!clean) return null;
+  const full = path.join(dir, clean);
+  return full.startsWith(dir + path.sep) ? full : null;
+}
+
+function chownTree(p) {
+  if (!sandboxUser) return;
+  try { execSync(`chown -R ${sandboxUser.uid}:${sandboxUser.gid} ${JSON.stringify(p)}`, { stdio: "ignore", timeout: 60000 }); } catch {}
+}
+
+function readBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on("data", (d) => { size += d.length; if (size > limit) { reject(new Error("Request too big")); req.destroy(); } else chunks.push(d); });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+async function wsSync(body) {
+  const dir = wsDir(body.project);
+  fs.mkdirSync(dir, { recursive: true });
+  if (body.reset) {
+    // Fresh copy, but keep installed dependencies so installs don't have to start over.
+    for (const name of fs.readdirSync(dir)) {
+      if (!WS_HEAVY.has(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
+  }
+  let written = 0, removed = 0;
+  for (const f of Array.isArray(body.files) ? body.files : []) {
+    const full = wsPath(dir, f.path);
+    if (!full) continue;
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, Buffer.from(String(f.content || ""), "base64"));
+    written++;
+  }
+  for (const rel of Array.isArray(body.delete) ? body.delete : []) {
+    const full = wsPath(dir, rel);
+    if (full) { fs.rmSync(full, { recursive: true, force: true }); removed++; }
+  }
+  chownTree(dir);
+  return { written, removed };
+}
+
+function changedSince(dir, since) {
+  const out = []; let total = 0; let truncated = false;
+  const walk = (d) => {
+    let entries = [];
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (out.length >= 60 || total > 2 * 1024 * 1024) { truncated = true; return; }
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) { if (!WS_HEAVY.has(e.name)) walk(full); continue; }
+      if (!e.isFile()) continue;
+      let st; try { st = fs.statSync(full); } catch { continue; }
+      if (st.mtimeMs < since || st.size > 512 * 1024) continue;
+      const buf = fs.readFileSync(full);
+      if (buf.subarray(0, 8000).includes(0)) continue;   // text files only
+      total += buf.length;
+      out.push({ path: path.relative(dir, full).split(path.sep).join("/"), content: buf.toString("base64") });
+    }
+  };
+  walk(dir);
+  return { changed: out, truncated };
+}
+
+async function wsExec(body) {
+  const dir = wsDir(body.project);
+  if (!fs.existsSync(dir)) return [400, { message: "Workspace isn't synced yet." }];
+  const timeout = Math.min(Math.max(Number(body.timeout) || 120, 5), 600) * 1000;
+  const start = Date.now() - 1500;
+  const r = await exec(["bash", "-lc", String(body.command || "")], { cwd: dir, timeout });
+  const { changed, truncated } = changedSince(dir, start);
+  return [200, { stdout: r.stdout, stderr: r.stderr, code: r.code, signal: r.signal, changed, truncated }];
+}
+
 http.createServer((req, res) => {
   const url = (req.url || "/").split("?")[0].replace(/\/+$/, "") || "/";
   if (req.method === "GET" && (url === "/" || url === "/health")) {
@@ -192,6 +281,18 @@ http.createServer((req, res) => {
   }
   if (!authorized(req)) return send(res, 401, { message: "Wrong or missing runner key. Check Settings › Run in MangoIDE." });
   if (req.method === "GET" && url === "/api/v2/runtimes") return send(res, 200, RUNTIMES);
+  if (req.method === "POST" && (url === "/workspace/sync" || url === "/workspace/exec")) {
+    readBody(req, WS_MAX_BODY).then(async (raw) => {
+      let body;
+      try { body = JSON.parse(raw); } catch { return send(res, 400, { message: "Request wasn't valid JSON." }); }
+      try {
+        if (url === "/workspace/sync") return send(res, 200, await wsSync(body));
+        const [status, out] = await wsExec(body);
+        send(res, status, out);
+      } catch (e) { send(res, 500, { message: "Workspace error: " + e.message }); }
+    }, (e) => send(res, 413, { message: e.message }));
+    return;
+  }
   if (req.method === "POST" && url === "/agent/messages") {
     let raw = "", tooBig = false;
     req.on("data", d => { raw += d; if (raw.length > AGENT_MAX_BODY) { tooBig = true; req.destroy(); } });
