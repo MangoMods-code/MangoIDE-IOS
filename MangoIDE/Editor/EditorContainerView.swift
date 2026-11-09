@@ -87,14 +87,25 @@ final class EditorContainerView: UIView, UITextViewDelegate {
         gutter.setNeedsDisplay()
     }
 
-    /// Dotted underlines under the problem spots (display-only, the text itself isn't changed).
+    /// Dotted underlines under the problem spots. They're cleared as soon as you type and come back
+    /// after the next check, so they never get saved or spread into new text.
+    private var hasMarks = false
     private func applyDiagnosticMarks() {
-        let lm = textView.layoutManager
-        let length = textView.textStorage.length
+        let storage = textView.textStorage
+        let length = storage.length
         let full = NSRange(location: 0, length: length)
-        lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: full)
-        lm.removeTemporaryAttribute(.underlineColor, forCharacterRange: full)
-        guard length > 0 else { return }
+        if hasMarks {
+            storage.beginEditing()
+            storage.removeAttribute(.underlineStyle, range: full)
+            storage.removeAttribute(.underlineColor, range: full)
+            storage.endEditing()
+            hasMarks = false
+            textView.typingAttributes[.underlineStyle] = nil
+            textView.typingAttributes[.underlineColor] = nil
+        }
+        guard length > 0, !diagnostics.isEmpty else { return }
+        storage.beginEditing()
+        defer { storage.endEditing() }
         let ns = textView.textStorage.string as NSString
         for d in diagnostics.prefix(300) {
             let li = d.line - 1
@@ -113,8 +124,9 @@ final class EditorContainerView: UIView, UITextViewDelegate {
             }
             guard to > from else { continue }
             let color: UIColor = d.severity == .error ? .systemRed : d.severity == .warning ? .systemOrange : .systemBlue
-            lm.addTemporaryAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue | NSUnderlineStyle.patternDot.rawValue,
-                                       .underlineColor: color], forCharacterRange: NSRange(location: from, length: to - from))
+            storage.addAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue | NSUnderlineStyle.patternDot.rawValue,
+                                   .underlineColor: color], range: NSRange(location: from, length: to - from))
+            hasMarks = true
         }
     }
 
