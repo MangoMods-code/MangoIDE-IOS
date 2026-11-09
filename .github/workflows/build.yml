@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - "runner/**"
+      - "accounts/**"
   workflow_dispatch:
 
 permissions:
