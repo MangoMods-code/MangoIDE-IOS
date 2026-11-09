@@ -363,8 +363,37 @@ struct GeneralSettings: View {
 
 struct AgentSettings: View {
     @EnvironmentObject var s: AppSettings
+    @State private var keyDraft = ""
+    @State private var editingKey = false
+
+    private var maskedKey: String {
+        let k = s.agentAPIKey
+        guard k.count > 12 else { return k.isEmpty ? "Not set" : "Saved" }
+        return String(k.prefix(7)) + "…" + String(k.suffix(4))
+    }
+
     var body: some View {
         Form {
+            Section {
+                if editingKey || s.agentAPIKey.isEmpty {
+                    SecureField("sk-ant-…", text: $keyDraft)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    HStack {
+                        Button("Save Key") {
+                            s.agentAPIKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                            keyDraft = ""; editingKey = false
+                        }
+                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if editingKey { Spacer(); Button("Cancel") { keyDraft = ""; editingKey = false } }
+                    }
+                } else {
+                    LabeledContent("API Key", value: maskedKey)
+                    Button("Change Key") { editingKey = true }
+                    Button("Remove Key", role: .destructive) { s.agentAPIKey = "" }
+                }
+            } header: { Text("Anthropic API Key") } footer: {
+                Text("Stored only in this iPhone's Keychain. It's not in the app, its settings or the IPA, and it's never sent to your server: the agent talks to Anthropic directly. Get a key at console.anthropic.com.")
+            }
             Section {
                 Picker("Model", selection: $s.agentModel) {
                     ForEach(AgentSession.models, id: \.id) { m in Text(m.name).tag(m.id) }

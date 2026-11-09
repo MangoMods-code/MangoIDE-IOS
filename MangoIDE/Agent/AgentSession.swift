@@ -118,15 +118,23 @@ final class AgentSession: ObservableObject {
             finish("Stopped after \(s.agentMaxSteps) steps. Say “keep going” to continue.", error: true)
             return
         }
-        guard let url = RunService.runnerEndpoint(s.runnerURL, path: "x")?.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("agent/messages") else {
-            finish("Set your runner server in Settings › Run first.", error: true)
-            return
+        // With your own key on this phone, talk to Anthropic directly. Otherwise go through the runner server.
+        let ownKey = s.agentAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        var req: URLRequest
+        if !ownKey.isEmpty {
+            req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!, timeoutInterval: 200)
+            req.setValue(ownKey, forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        } else {
+            guard let url = RunService.runnerEndpoint(s.runnerURL, path: "x")?.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("agent/messages") else {
+                finish("Add your Anthropic API key in Settings › Agent first.", error: true)
+                return
+            }
+            req = URLRequest(url: url, timeoutInterval: 200)
+            RunService.authorize(&req)
         }
-
-        var req = URLRequest(url: url, timeoutInterval: 200)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        RunService.authorize(&req)
         req.httpBody = try? JSONSerialization.data(withJSONObject: requestBody())
 
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, error in
@@ -193,14 +201,18 @@ final class AgentSession: ObservableObject {
         if let err = json["error"] as? [String: Any] {
             let msg = err["message"] as? String ?? "Unknown error"
             let low = msg.lowercased()
-            if low.contains("credit") || low.contains("balance") || low.contains("billing") {
+            if low.contains("api key") || low.contains("x-api-key") || low.contains("authentication") {
+                finish("Anthropic didn't accept the API key. Check it in Settings › Agent.", error: true)
+            } else if low.contains("credit") || low.contains("balance") || low.contains("billing") {
                 finish("Your Anthropic account is out of credit. Add some at console.anthropic.com, then try again.", error: true)
             } else {
                 finish("AI error: \(msg)", error: true)
             }
             return
         }
-        if let msg = json["message"] as? String, json["content"] == nil { finish(msg, error: true); return }
+        if let msg = json["message"] as? String, json["content"] == nil {
+            finish(msg.contains("ANTHROPIC_API_KEY") ? "Add your Anthropic API key in Settings › Agent." : msg, error: true); return
+        }
 
         if let usage = json["usage"] as? [String: Any] { addCost(usage) }
         let content = json["content"] as? [[String: Any]] ?? []

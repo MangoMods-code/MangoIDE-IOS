@@ -94,6 +94,8 @@ final class AppSettings: ObservableObject {
     @Published var agentSpendCap: Double { didSet { put(agentSpendCap, "agentSpendCap") } }
     @Published var agentMaxSteps: Int { didSet { put(agentMaxSteps, "agentMaxSteps") } }
     @Published var agentCloudWorkspace: Bool { didSet { put(agentCloudWorkspace, "agentCloudWorkspace") } }
+    /// Your Anthropic API key. Kept only in this iPhone's Keychain: never in settings files, the app or a server.
+    @Published var agentAPIKey: String { didSet { KeychainStore.set(agentAPIKey.trimmingCharacters(in: .whitespacesAndNewlines), for: "anthropicKey") } }
 
     // MARK: General
     @Published var hapticFeedback: Bool { didSet { put(hapticFeedback, "hapticFeedback") } }
@@ -185,6 +187,7 @@ final class AppSettings: ObservableObject {
         agentSpendCap = AppSettings.v("agentSpendCap", 0.5)
         agentMaxSteps = AppSettings.v("agentMaxSteps", 40)
         agentCloudWorkspace = AppSettings.v("agentCloudWorkspace", false)
+        agentAPIKey = KeychainStore.get("anthropicKey") ?? ""
         hapticFeedback = AppSettings.v("hapticFeedback", true)
         keepScreenAwake = AppSettings.v("keepScreenAwake", false)
         showWelcome = AppSettings.v("showWelcome", true)
