@@ -30,7 +30,7 @@ struct MangoIDEApp: App {
                     extensions.reload()
                     editor.restoreSession()
                     settings.applyIdleTimer()
-                    if editor.panes.allSatisfy({ $0.tabs.isEmpty }) && settings.showWelcome {
+                    if editor.panes.allSatisfy({ $0.tabs.isEmpty }) && editor.lastProject == nil && settings.showWelcome {
                         editor.open(workspace.scratchFolder.appendingPathComponent("Welcome.md"))
                     }
                 }

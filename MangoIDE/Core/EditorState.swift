@@ -24,7 +24,9 @@ final class EditorState: ObservableObject {
     let cursor = CursorModel()
     /// The project you were last working in. When its last tab closes, the editor stays on it
     /// (and the explorer opens) instead of going back to the start screen.
-    @Published var lastProject: URL?
+    @Published var lastProject: URL? {
+        didSet { if didRestore && oldValue?.standardizedFileURL != lastProject?.standardizedFileURL { saveLastProject() } }
+    }
     /// Bumped when the explorer should open itself.
     @Published var explorerRequest = 0
 
@@ -224,8 +226,13 @@ final class EditorState: ObservableObject {
     /// Synchronous save for when the app is leaving the foreground.
     /// Used when the app leaves the screen. Only saves if autosave is on, so "Discard" stays meaningful.
     func saveAllNow() {
-        guard AppSettings.shared.autosave else { return }
-        documents.values.forEach { $0.saveNow() }
+        if AppSettings.shared.autosave {
+            documents.values.forEach { $0.saveNow() }
+        } else {
+            // Not saving to your files, but keep the unsaved edits so they're there when you come back.
+            documents.values.forEach { $0.writeDraftNow() }
+        }
+        saveLastProject()
     }
 
     var dirtyCount: Int { documents.values.filter { $0.isDirty }.count }
@@ -236,11 +243,18 @@ final class EditorState: ObservableObject {
         let oldPath = old.standardizedFileURL.path
         for d in documents.values {
             let p = d.url.standardizedFileURL.path
+            let before = d.url
             if p == oldPath { d.url = new }
             else if p.hasPrefix(oldPath + "/") {
                 d.url = URL(fileURLWithPath: new.standardizedFileURL.path + String(p.dropFirst(oldPath.count)))
             }
+            if d.url != before && d.isDirty {
+                // Move the unsaved draft along with the file.
+                DraftStore.remove(for: before)
+                d.writeDraftNow()
+            }
         }
+        if let lp = lastProject, lp.standardizedFileURL.path == oldPath { lastProject = new }
         objectWillChange.send()
         saveSession()
     }
@@ -281,7 +295,7 @@ final class EditorState: ObservableObject {
 
     func restoreSession() {
         guard !didRestore else { return }
-        defer { didRestore = true }
+        defer { didRestore = true; restoreLastProject() }
         guard AppSettings.shared.restoreTabs,
               let raw = UserDefaults.standard.data(forKey: "session.tabs"),
               let s = try? JSONDecoder().decode(Session.self, from: raw) else { return }
@@ -304,6 +318,26 @@ final class EditorState: ObservableObject {
         if isSplit && panes[1].tabs.isEmpty { panes.remove(at: 1) }
         if isSplit && panes[0].tabs.isEmpty { panes.remove(at: 0) }
         focusedPane = min(s.focused, panes.count - 1)
+    }
+
+    // MARK: Last project (so closing the app keeps you in your project)
+
+    func saveLastProject() {
+        if let p = lastProject, let b = try? p.bookmarkData() {
+            UserDefaults.standard.set(b, forKey: "session.lastProject")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "session.lastProject")
+        }
+    }
+
+    func restoreLastProject() {
+        guard lastProject == nil, let b = UserDefaults.standard.data(forKey: "session.lastProject") else { return }
+        var stale = false
+        if let u = try? URL(resolvingBookmarkData: b, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
+           Workspace.shared.isDirectory(u) {
+            _ = u.startAccessingSecurityScopedResource()
+            lastProject = u
+        }
     }
 
     // MARK: Editing helpers for the focused editor

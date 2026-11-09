@@ -36,6 +36,42 @@ final class EditorDocument: ObservableObject, Identifiable {
     init(url: URL) {
         self.url = url
         load()
+        restoreDraft()
+    }
+
+    // MARK: Drafts (unsaved edits that survive closing the app)
+
+    private var draftWork: DispatchWorkItem?
+
+    /// If you closed the app with unsaved edits, bring them back (still unsaved).
+    private func restoreDraft() {
+        guard !isBinary, loadError == nil, let draft = DraftStore.load(for: url) else { return }
+        if draft == text { DraftStore.remove(for: url); return }
+        text = draft
+        isDirty = true
+        contentVersion += 1
+        scheduleAutosave()
+    }
+
+    private func scheduleDraft() {
+        draftWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isDirty else { return }
+            DraftStore.save(self.text, for: self.url)
+        }
+        draftWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+
+    /// Writes the draft right away (used when the app leaves the screen).
+    func writeDraftNow() {
+        draftWork?.cancel()
+        if isDirty && !isBinary { DraftStore.save(text, for: url, sync: true) }
+    }
+
+    func clearDraft() {
+        draftWork?.cancel()
+        DraftStore.remove(for: url)
     }
 
     func load() {
@@ -80,6 +116,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         lastEditor = source
         if !isDirty { isDirty = true }
         scheduleAutosave()
+        scheduleDraft()
         guard listeners.count > 1 else { return }
         // Other panes catch up after a short pause instead of on every key.
         syncWork?.cancel()
@@ -94,7 +131,7 @@ final class EditorDocument: ObservableObject, Identifiable {
     /// Replace everything from outside a text view. Every open view picks it up.
     func replaceAll(_ newText: String, markDirty: Bool = true) {
         text = newText
-        if markDirty { isDirty = true; scheduleAutosave() }
+        if markDirty { isDirty = true; scheduleAutosave(); scheduleDraft() }
         contentVersion += 1
     }
 
@@ -143,6 +180,7 @@ final class EditorDocument: ObservableObject, Identifiable {
                 } else {
                     self.saveError = nil
                     self.lastSaved = Date()
+                    if !self.isDirty { self.clearDraft() }
                     if Workspace.shared.isInside(target, Workspace.shared.extensionsFolder) {
                         ExtensionManager.shared.reload()
                     }
@@ -156,6 +194,7 @@ final class EditorDocument: ObservableObject, Identifiable {
     func discardChanges() {
         autosaveWork?.cancel()
         syncWork?.cancel()
+        clearDraft()
         load()
     }
 
@@ -163,7 +202,7 @@ final class EditorDocument: ObservableObject, Identifiable {
     func saveNow() {
         guard isDirty, !isBinary, loadError == nil else { return }
         autosaveWork?.cancel()
-        do { try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false }
+        do { try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false; clearDraft() }
         catch { saveError = "Couldn't save: \(error.localizedDescription)" }
     }
 }
