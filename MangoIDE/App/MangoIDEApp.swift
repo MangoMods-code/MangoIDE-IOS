@@ -9,6 +9,7 @@ struct MangoIDEApp: App {
     @StateObject private var extensions = ExtensionManager.shared
     @StateObject private var console = ConsoleModel()
     @StateObject private var router = Router()
+    @StateObject private var agent = AgentSession()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -20,8 +21,10 @@ struct MangoIDEApp: App {
                 .environmentObject(extensions)
                 .environmentObject(console)
                 .environmentObject(router)
+                .environmentObject(agent)
                 .onAppear {
                     router.editor = editor
+                    agent.editor = editor
                     FilePicker.onAccessRefused = { [weak router] why in router?.errorMessage = why }
                     workspace.setUp()
                     extensions.reload()
@@ -44,7 +47,7 @@ struct MangoIDEApp: App {
 enum AppSheet: Identifiable {
     case newFile(URL), newFolder(URL), newProject, settings, extensions, snippets
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
-    case projects, pickProjectsFolder
+    case projects, pickProjectsFolder, agent
 
     var id: String {
         switch self {
@@ -61,6 +64,7 @@ enum AppSheet: Identifiable {
         case .importArchive: return "importArchive"
         case .projects: return "projects"
         case .pickProjectsFolder: return "pickProjectsFolder"
+        case .agent: return "agent"
         }
     }
 }

@@ -15,6 +15,7 @@ struct SettingsView: View {
                     NavigationLink { AppearanceSettings() } label: { row("Appearance & Themes", "paintpalette", .pink) }
                     NavigationLink { FileSettings() } label: { row("Files & Projects", "folder", .orange) }
                     NavigationLink { RunSettings() } label: { row("Run & Console", "play.rectangle", .green) }
+                    NavigationLink { AgentSettings() } label: { row("Agent", "sparkles", .indigo) }
                     NavigationLink { ExtensionsView() } label: { row("Extensions", "puzzlepiece.extension", .purple) }
                     NavigationLink { GeneralSettings() } label: { row("General", "gearshape", .gray) }
                 }
@@ -356,5 +357,34 @@ struct GeneralSettings: View {
             Toggle("Enable Extensions", isOn: $s.extensionsEnabled)
         }
         .navigationTitle("General")
+    }
+}
+
+
+struct AgentSettings: View {
+    @EnvironmentObject var s: AppSettings
+    var body: some View {
+        Form {
+            Section {
+                Picker("Model", selection: $s.agentModel) {
+                    ForEach(AgentSession.models, id: \.id) { m in Text(m.name).tag(m.id) }
+                }
+            } footer: { Text("Haiku is cheapest (about 2¢ for a small job), Sonnet is the best value (about 25¢), Opus is strongest (about 50¢).") }
+            Section {
+                Picker("Ask Before", selection: $s.agentApproval) {
+                    Text("Deletes & overwrites").tag("risky")
+                    Text("Every change").tag("all")
+                }
+            } header: { Text("Approvals") } footer: { Text("Everything the agent changes can be undone from its ⋯ menu.") }
+            Section {
+                Stepper2(title: "Spending Limit per Chat", value: $s.agentSpendCap, range: 0.05...20, step: 0.05, format: { String(format: "$%.2f", $0) })
+                Stepper(value: $s.agentMaxSteps, in: 5...200, step: 5) {
+                    HStack { Text("Max Steps per Request"); Spacer(); Text("\(s.agentMaxSteps)").foregroundStyle(.secondary) }
+                }
+            } header: { Text("Limits") } footer: {
+                Text("The agent talks to Claude through your runner server, where your Anthropic API key is kept. The key never goes in the app.")
+            }
+        }
+        .navigationTitle("Agent")
     }
 }

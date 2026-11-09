@@ -17,6 +17,10 @@ const COMPILE_TIMEOUT = Number(process.env.COMPILE_TIMEOUT_MS || 60000);
 const MAX_OUTPUT = 256 * 1024;
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 4);
+// MangoIDE agent: the Anthropic API key lives only here, never in the app.
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
+const AGENT_MODELS = new Set(["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]);
+const AGENT_MAX_BODY = 12 * 1024 * 1024;
 
 let sandboxUser = null;
 try {
@@ -81,6 +85,7 @@ for (const [name, def] of Object.entries(LANGS)) {
     RUNTIMES.push({ language: name, version: v, aliases: def.aliases, runtime: name });
   } catch { def.missing = true; }
 }
+console.log(ANTHROPIC_KEY ? "Agent: Anthropic key set" : "Agent: no ANTHROPIC_API_KEY yet");
 console.log("Runtimes:", RUNTIMES.map(r => `${r.language} ${r.version}`).join(", "));
 if (!KEY) console.warn("WARNING: RUNNER_KEY is not set, so every request will be refused.");
 
@@ -187,6 +192,38 @@ http.createServer((req, res) => {
   }
   if (!authorized(req)) return send(res, 401, { message: "Wrong or missing runner key. Check Settings › Run in MangoIDE." });
   if (req.method === "GET" && url === "/api/v2/runtimes") return send(res, 200, RUNTIMES);
+  if (req.method === "POST" && url === "/agent/messages") {
+    let raw = "", tooBig = false;
+    req.on("data", d => { raw += d; if (raw.length > AGENT_MAX_BODY) { tooBig = true; req.destroy(); } });
+    req.on("end", async () => {
+      if (tooBig) return;
+      if (!ANTHROPIC_KEY) return send(res, 503, { message: "No Anthropic API key on the runner server yet. Add ANTHROPIC_API_KEY in Railway." });
+      let body;
+      try { body = JSON.parse(raw); } catch { return send(res, 400, { message: "Request wasn't valid JSON." }); }
+      if (!AGENT_MODELS.has(body.model)) return send(res, 400, { message: `Model ${body.model} isn't allowed.` });
+      const payload = {
+        model: body.model,
+        max_tokens: Math.min(Number(body.max_tokens) || 8000, 16000),
+        system: body.system,
+        messages: body.messages,
+        tools: body.tools,
+      };
+      try {
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(180000),
+        });
+        const text = await r.text();
+        res.writeHead(r.status, { "Content-Type": "application/json" });
+        res.end(text);
+      } catch (e) {
+        send(res, 502, { message: "Couldn't reach Anthropic: " + e.message });
+      }
+    });
+    return;
+  }
   if (req.method === "POST" && url === "/api/v2/execute") {
     let raw = "";
     let tooBig = false;

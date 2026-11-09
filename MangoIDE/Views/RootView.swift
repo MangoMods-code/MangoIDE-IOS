@@ -8,6 +8,7 @@ struct RootView: View {
     @EnvironmentObject var extensions: ExtensionManager
     @EnvironmentObject var console: ConsoleModel
     @EnvironmentObject var router: Router
+    @EnvironmentObject var agent: AgentSession
     @Environment(\.scenePhase) private var scenePhase
 
     var theme: EditorTheme { extensions.theme(id: settings.effectiveThemeID) }
@@ -126,6 +127,14 @@ struct RootView: View {
             case .extensions: NavigationStack { ExtensionsView() }
             case .snippets: SnippetsSheet()
             case .projects: ProjectsSheet()
+            case .agent:
+                if #available(iOS 16.4, *) {
+                    AgentView()
+                        .presentationDetents([.medium, .large])
+                        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                } else {
+                    AgentView().presentationDetents([.medium, .large])
+                }
             default:
                 EmptyView()
             }
@@ -136,6 +145,7 @@ struct RootView: View {
         .environmentObject(extensions)
         .environmentObject(console)
         .environmentObject(router)
+        .environmentObject(agent)
         .environment(\.chrome, chrome)
         .preferredColorScheme(appScheme)
         .tint(appTint)
@@ -173,6 +183,7 @@ struct TopBar: View {
                 barButton("magnifyingglass") { editor.showFind(replace: true) }
                     .disabled(editor.activeDocument == nil)
             }
+            barButton("sparkles") { router.show(.agent) }
             barButton("terminal") { console.isVisible.toggle() }
             moreMenu
         }

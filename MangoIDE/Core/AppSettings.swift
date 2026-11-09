@@ -88,6 +88,12 @@ final class AppSettings: ObservableObject {
     @Published var showExecutionTime: Bool { didSet { put(showExecutionTime, "showExecutionTime") } }
     @Published var jsStrictMode: Bool { didSet { put(jsStrictMode, "jsStrictMode") } }
 
+    // MARK: Agent
+    @Published var agentModel: String { didSet { put(agentModel, "agentModel") } }
+    @Published var agentApproval: String { didSet { put(agentApproval, "agentApproval") } }
+    @Published var agentSpendCap: Double { didSet { put(agentSpendCap, "agentSpendCap") } }
+    @Published var agentMaxSteps: Int { didSet { put(agentMaxSteps, "agentMaxSteps") } }
+
     // MARK: General
     @Published var hapticFeedback: Bool { didSet { put(hapticFeedback, "hapticFeedback") } }
     @Published var keepScreenAwake: Bool { didSet { put(keepScreenAwake, "keepScreenAwake"); applyIdleTimer() } }
@@ -173,6 +179,10 @@ final class AppSettings: ObservableObject {
         showExecutionTime = AppSettings.v("showExecutionTime", true)
         jsStrictMode = AppSettings.v("jsStrictMode", false)
 
+        agentModel = AppSettings.v("agentModel", "claude-haiku-5-5")
+        agentApproval = AppSettings.v("agentApproval", "risky")
+        agentSpendCap = AppSettings.v("agentSpendCap", 0.5)
+        agentMaxSteps = AppSettings.v("agentMaxSteps", 40)
         hapticFeedback = AppSettings.v("hapticFeedback", true)
         keepScreenAwake = AppSettings.v("keepScreenAwake", false)
         showWelcome = AppSettings.v("showWelcome", true)

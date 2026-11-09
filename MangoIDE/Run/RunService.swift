@@ -196,6 +196,25 @@ enum RunService {
         }
     }
 
+    /// Runs code and hands back everything it printed, for the agent (doesn't touch the visible console).
+    static func runCapture(code: String, fileName: String, runner: String, stdin: String, completion: @escaping (String) -> Void) {
+        let capture = ConsoleModel()
+        let done: (Bool) -> Void = { ok in
+            // Console output is flushed in small batches; give the last batch a moment to land.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                let text = capture.lines.map { line -> String in
+                    line.kind == .err ? "[stderr] " + line.text : line.text
+                }.joined(separator: "\n")
+                completion((ok ? "" : "[exit: failed]\n") + text)
+            }
+        }
+        if runner == "js" {
+            runJavaScript(code, stdin: stdin, strict: AppSettings.shared.jsStrictMode, console: capture, done: done)
+        } else {
+            runRemote(code: code, fileName: fileName, language: runner, stdin: stdin, console: capture, done: done)
+        }
+    }
+
     // MARK: Remote runner (Piston API)
 
     static func runnerEndpoint(_ base: String, path: String) -> URL? {
