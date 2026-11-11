@@ -254,17 +254,6 @@ enum RunService {
                 let line = ex?.objectForKeyedSubscript("line")?.toString() ?? "?"
                 console.append(.err, "\(ex?.toString() ?? "Error") (line \(line))")
             }
-            let fmt: @convention(block) () -> String = {
-                let args = JSContext.currentArguments() as? [JSValue] ?? []
-                return args.map { v -> String in
-                    if v.isString { return v.toString() }
-                    if v.isObject && !v.isNull, let json = JSContext.current()?.objectForKeyedSubscript("JSON")?.invokeMethod("stringify", withArguments: [v, NSNull(), 2]), json.isString {
-                        return json.toString()
-                    }
-                    return v.toString()
-                }.joined(separator: " ")
-            }
-            ctx.setObject(fmt, forKeyedSubscript: "__fmt" as NSString)
             let out: @convention(block) (String) -> Void = { console.append(.out, $0) }
             let err: @convention(block) (String) -> Void = { console.append(.err, $0) }
             ctx.setObject(out, forKeyedSubscript: "__out" as NSString)
@@ -275,23 +264,51 @@ enum RunService {
                 return inputLines.removeFirst()
             }
             ctx.setObject(readLine, forKeyedSubscript: "readLine" as NSString)
+            // JS-RUNTIME-BEGIN (tools/js_run.js runs templates against this exact text; keep it free of backslashes)
             ctx.evaluateScript("""
+            var __show = function(v) {
+              if (typeof v === "string") return v;
+              if (typeof v === "function") return "[Function " + (v.name || "anonymous") + "]";
+              if (v instanceof Error) return String(v);
+              if (v && typeof v === "object") {
+                try {
+                  var plain = function(k, x) { return x instanceof Map ? { Map: Array.from(x) } : x instanceof Set ? { Set: Array.from(x) } : x; };
+                  var one = JSON.stringify(v, plain);
+                  if (one !== undefined) return one.length <= 80 ? one : JSON.stringify(v, plain, 2);
+                } catch (e) {}
+              }
+              return String(v);
+            };
+            var __join = function(args) { return Array.prototype.map.call(args, __show).join(" "); };
             var console = {
-              log: function() { __out(__fmt.apply(null, arguments)); },
-              info: function() { __out(__fmt.apply(null, arguments)); },
-              debug: function() { __out(__fmt.apply(null, arguments)); },
-              warn: function() { __err("⚠ " + __fmt.apply(null, arguments)); },
-              error: function() { __err(__fmt.apply(null, arguments)); },
+              log: function() { __out(__join(arguments)); },
+              info: function() { __out(__join(arguments)); },
+              debug: function() { __out(__join(arguments)); },
+              warn: function() { __err("⚠ " + __join(arguments)); },
+              error: function() { __err(__join(arguments)); },
               table: function(t) { __out(JSON.stringify(t, null, 2)); },
               clear: function() {}
             };
-            var prompt = function(msg) { var l = readLine(); return l === undefined ? null : l; };
+            var prompt = function(msg) { var l = readLine(); return l === undefined || l === null ? null : l; };
             var print = console.log;
-            var __timers = [];
-            var setTimeout = function(fn, ms) { __timers.push({fn: fn, ms: ms || 0}); return __timers.length; };
-            var setInterval = function(fn, ms) { __timers.push({fn: fn, ms: ms || 0}); return __timers.length; };
-            var clearTimeout = function() {}; var clearInterval = function() {};
+            var __timers = [], __now = 0, __tid = 0;
+            var __add = function(fn, ms, every, args) { var id = ++__tid; __timers.push({ id: id, fn: fn, at: __now + (ms || 0), every: every, args: args }); return id; };
+            var setTimeout = function(fn, ms) { return __add(fn, ms, 0, Array.prototype.slice.call(arguments, 2)); };
+            var setInterval = function(fn, ms) { return __add(fn, ms, Math.max(1, ms || 0), Array.prototype.slice.call(arguments, 2)); };
+            var clearTimeout = function(id) { __timers = __timers.filter(function(t) { return t.id !== id; }); };
+            var clearInterval = clearTimeout;
+            var __tick = function() {
+              if (!__timers.length) return false;
+              var i = 0;
+              for (var k = 1; k < __timers.length; k++) if (__timers[k].at < __timers[i].at) i = k;
+              var t = __timers[i];
+              __now = t.at;
+              if (t.every) t.at += t.every; else __timers.splice(i, 1);
+              try { t.fn.apply(null, t.args); } catch (e) { console.error(String(e)); }
+              return true;
+            };
             """)
+            // JS-RUNTIME-END
             let source = (strict ? "\"use strict\";\n" : "") + code
             let started = Date()
             ctx.evaluateScript(source)
@@ -300,8 +317,10 @@ enum RunService {
                 done(false)
                 return
             }
-            // Run queued timers in order once (enough for simple async demos).
-            ctx.evaluateScript("__timers.sort(function(a,b){return a.ms-b.ms}); while (__timers.length) { var t = __timers.shift(); try { t.fn(); } catch (e) { console.error(String(e)); } }")
+            // Timers fire in order without really waiting. Each one runs as its own step, so promises and
+            // async/await that depend on them continue properly. A runaway setInterval stops at the cap.
+            var ticks = 0
+            while ticks < 20_000, ctx.evaluateScript("__tick()")?.toBool() == true { ticks += 1 }
             done(!failed)
         }
     }

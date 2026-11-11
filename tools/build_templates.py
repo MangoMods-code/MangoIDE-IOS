@@ -38,7 +38,7 @@ def parse(path, language):
     for t in out:
         assert t["files"], t["id"]
         if not t["entry"]:
-            t["entry"] = "main.py" if "main.py" in t["files"] else next(iter(t["files"]))
+            t["entry"] = next((f for f in t["files"] if f.startswith("main.")), next(iter(t["files"])))
         assert t["entry"] in t["files"], (t["id"], t["entry"])
     assert len({t["id"] for t in out}) == len(out), "duplicate slug"
     return out
@@ -52,8 +52,19 @@ def test(templates):
                 os.makedirs(os.path.dirname(full), exist_ok=True)
                 open(full, "w", encoding="utf-8").write(c)
             try:
-                r = subprocess.run([sys.executable, t["entry"]], cwd=d, input="", capture_output=True, text=True, timeout=20)
-                ok, why = r.returncode == 0, (r.stderr.strip().splitlines() or ["exit %d" % r.returncode])[-1]
+                if t["language"] == "python":
+                    cmd = [sys.executable, t["entry"]]
+                elif t["language"] == "javascript":
+                    cmd = ["node", os.path.join(ROOT, "tools", "js_run.js"), t["entry"]]
+                else:  # swift: compile, then run
+                    c = subprocess.run(["swiftc", "-Onone", "-o", "a.out", t["entry"]], cwd=d, capture_output=True, text=True, timeout=300)
+                    if c.returncode != 0:
+                        bad += 1
+                        print("FAIL", t["id"], "- does not compile:\n" + "\n".join(l for l in c.stderr.splitlines() if "error" in l or "^" in l or "|" in l)[:1500])
+                        continue
+                    cmd = ["./a.out"]
+                r = subprocess.run(cmd, cwd=d, input="", capture_output=True, text=True, timeout=30)
+                ok, why = r.returncode == 0, ((r.stderr.strip() or r.stdout.strip()).splitlines() or ["exit %d" % r.returncode])[-1]
             except subprocess.TimeoutExpired:
                 ok, why = False, "timed out"
         if not ok:
@@ -70,7 +81,10 @@ def main():
         dest = os.path.join(ROOT, "MangoIDE", "Resources", f"templates-{lang}.json")
         json.dump(ts, open(dest, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print(f"{lang}: {len(ts)} templates -> {os.path.relpath(dest, ROOT)}")
-        if "--test" in sys.argv and lang == "python": failures += test(ts)
+        import shutil
+        can = {"python": True, "javascript": bool(shutil.which("node")), "swift": bool(shutil.which("swiftc"))}
+        only = [a[7:] for a in sys.argv if a.startswith("--only=")]
+        if "--test" in sys.argv and can.get(lang) and (not only or lang in only): failures += test(ts)
     sys.exit(1 if failures else 0)
 
 if __name__ == "__main__":

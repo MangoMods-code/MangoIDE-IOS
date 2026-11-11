@@ -1,0 +1,518 @@
+[
+ {
+  "id": "swift/hello-you",
+  "name": "Hello, You",
+  "category": "Starter",
+  "icon": "hand.wave.fill",
+  "summary": "Ask for a name and greet it. Your first Swift program.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// Tap ▶, then type in the box under the console.\nimport Foundation\nsetvbuf(stdout, nil, _IONBF, 0)   // show prompts right away\n\nprint(\"What's your name? \", terminator: \"\")\nlet typed = readLine()?.trimmingCharacters(in: .whitespaces) ?? \"\"\nlet name = typed.isEmpty ? \"friend\" : typed\n\nprint(\"Hello, \\(name)! Welcome to Swift.\")\nprint(\"Your name has \\(name.count) letters and backwards it's \\(String(name.reversed())).\")\n"
+  }
+ },
+ {
+  "id": "swift/calculator",
+  "name": "Calculator",
+  "category": "Starter",
+  "icon": "plusminus.circle.fill",
+  "summary": "Type sums like 3 * (4 + 5). A small parser works out the answer.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// A calculator with + - * / and brackets, built as a recursive-descent parser.\nimport Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nenum CalcError: Error { case unexpected(String), divideByZero }\n\nstruct Parser {\n    var tokens: [String]\n    var pos = 0\n\n    init(_ text: String) {\n        var out: [String] = []\n        var number = \"\"\n        for ch in text where ch != \" \" {\n            if ch.isNumber || ch == \".\" { number.append(ch) } else {\n                if !number.isEmpty { out.append(number); number = \"\" }\n                out.append(String(ch))\n            }\n        }\n        if !number.isEmpty { out.append(number) }\n        tokens = out\n    }\n\n    var peek: String? { pos < tokens.count ? tokens[pos] : nil }\n    mutating func next() -> String? { defer { pos += 1 }; return peek }\n\n    mutating func factor() throws -> Double {\n        guard let t = next() else { throw CalcError.unexpected(\"end of sum\") }\n        if t == \"(\" {\n            let v = try expression()\n            guard next() == \")\" else { throw CalcError.unexpected(\"missing )\") }\n            return v\n        }\n        if t == \"-\" { return -(try factor()) }\n        guard let v = Double(t) else { throw CalcError.unexpected(t) }\n        return v\n    }\n\n    mutating func term() throws -> Double {\n        var v = try factor()\n        while let op = peek, op == \"*\" || op == \"/\" {\n            pos += 1\n            let right = try factor()\n            if op == \"/\" && right == 0 { throw CalcError.divideByZero }\n            v = op == \"*\" ? v * right : v / right\n        }\n        return v\n    }\n\n    mutating func expression() throws -> Double {\n        var v = try term()\n        while let op = peek, op == \"+\" || op == \"-\" {\n            pos += 1\n            let right = try term()\n            v = op == \"+\" ? v + right : v - right\n        }\n        return v\n    }\n}\n\nfunc calculate(_ text: String) -> String {\n    var parser = Parser(text)\n    do {\n        let v = try parser.expression()\n        if let extra = parser.peek { throw CalcError.unexpected(extra) }\n        return v == v.rounded() && abs(v) < 1e15 ? String(Int(v)) : String(v)\n    } catch CalcError.divideByZero {\n        return \"can't divide by zero\"\n    } catch CalcError.unexpected(let what) {\n        return \"didn't expect \\(what)\"\n    } catch {\n        return \"error\"\n    }\n}\n\nfor sample in [\"3 * (4 + 5)\", \"10 / 4 - 1\", \"2 * (3\"] { print(\"\\(sample) = \\(calculate(sample))\") }\nprint(\"Type a sum (or q to quit).\")\nwhile true {\n    print(\"> \", terminator: \"\")\n    guard let line = readLine(), line != \"q\", !line.isEmpty else { break }\n    print(\"= \\(calculate(line))\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/temperature",
+  "name": "Temperature Converter",
+  "category": "Starter",
+  "icon": "thermometer.medium",
+  "summary": "Convert between Celsius, Fahrenheit and Kelvin.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nenum Unit: Character, CaseIterable {\n    case celsius = \"c\", fahrenheit = \"f\", kelvin = \"k\"\n\n    func toCelsius(_ v: Double) -> Double {\n        switch self {\n        case .celsius: return v\n        case .fahrenheit: return (v - 32) * 5 / 9\n        case .kelvin: return v - 273.15\n        }\n    }\n\n    func fromCelsius(_ c: Double) -> Double {\n        switch self {\n        case .celsius: return c\n        case .fahrenheit: return c * 9 / 5 + 32\n        case .kelvin: return c + 273.15\n        }\n    }\n}\n\nfunc convert(_ text: String) -> String {\n    let t = text.lowercased()\n    guard let last = t.last, let unit = Unit(rawValue: last), let value = Double(t.dropLast()) else {\n        return \"Use a number followed by c, f or k (like 72f).\"\n    }\n    let c = unit.toCelsius(value)\n    return Unit.allCases.map { String(format: \"%.1f°\", $0.fromCelsius(c)) + String($0.rawValue).uppercased() }.joined(separator: \"  \")\n}\n\nfor sample in [\"72f\", \"21c\", \"300k\"] { print(\"\\(sample) → \\(convert(sample))\") }\nprint(\"Type a temperature (or q to quit).\")\nwhile true {\n    print(\"> \", terminator: \"\")\n    guard let line = readLine()?.trimmingCharacters(in: .whitespaces), line != \"q\", !line.isEmpty else { break }\n    print(convert(line))\n}\n"
+  }
+ },
+ {
+  "id": "swift/tip-splitter",
+  "name": "Tip & Bill Splitter",
+  "category": "Starter",
+  "icon": "dollarsign.circle.fill",
+  "summary": "Work out the tip and what each person owes.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nfunc askNumber(_ prompt: String, default fallback: Double) -> Double {\n    print(\"\\(prompt) [\\(fallback)]: \", terminator: \"\")\n    guard let line = readLine(), let value = Double(line.trimmingCharacters(in: .whitespaces)) else { return fallback }\n    return value\n}\n\nfunc money(_ v: Double) -> String { String(format: \"$%.2f\", v) }\n\nlet bill = askNumber(\"Bill total\", default: 50)\nlet tipPercent = askNumber(\"Tip %\", default: 18)\nlet people = max(1, Int(askNumber(\"How many people\", default: 2)))\nlet tip = bill * tipPercent / 100\nlet total = bill + tip\n\nprint(\"\\nTip:        \\(money(tip))\")\nprint(\"Total:      \\(money(total))\")\nprint(\"Per person: \\(money(total / Double(people)))\")\nprint(\"\\nOther tips:\")\nfor percent in [10.0, 15, 20, 25] {\n    print(\"  \\(Int(percent))% → \\(money(bill * (1 + percent / 100) / Double(people))) each\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/countdown",
+  "name": "Countdown Timer",
+  "category": "Starter",
+  "icon": "timer",
+  "summary": "A ticking countdown with a progress bar.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nfunc bar(_ done: Int, of total: Int, width: Int = 20) -> String {\n    let filled = total == 0 ? width : width * done / total\n    return String(repeating: \"█\", count: filled) + String(repeating: \"░\", count: width - filled)\n}\n\nfunc countdown(from seconds: Int, tick: TimeInterval = 1) {\n    for left in stride(from: seconds, to: 0, by: -1) {\n        print(\"\\(bar(seconds - left, of: seconds)) \\(left)s left\")\n        Thread.sleep(forTimeInterval: tick)\n    }\n    print(\"\\(bar(1, of: 1)) Time's up! ⏰\")\n}\n\nprint(\"Seconds to count down [5]: \", terminator: \"\")\nif let line = readLine() {\n    countdown(from: Int(line.trimmingCharacters(in: .whitespaces)) ?? 5)\n} else {\n    countdown(from: 3, tick: 0.2)\n}\n"
+  }
+ },
+ {
+  "id": "swift/guess-number",
+  "name": "Guess the Number",
+  "category": "Games",
+  "icon": "questionmark.circle.fill",
+  "summary": "The computer picks a number; hints guide you to it.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet secret = Int.random(in: 1...100)\nvar tries = 0\nprint(\"I'm thinking of a number from 1 to 100.\")\n\nwhile true {\n    print(\"Your guess: \", terminator: \"\")\n    guard let line = readLine() else { print(\"\\nIt was \\(secret). Bye!\"); break }\n    guard let guess = Int(line.trimmingCharacters(in: .whitespaces)) else {\n        print(\"Type a whole number.\")\n        continue\n    }\n    tries += 1\n    if guess < secret {\n        print(\"Higher ⬆️\")\n    } else if guess > secret {\n        print(\"Lower ⬇️\")\n    } else {\n        print(\"Got it in \\(tries) tries! 🎉\")\n        break\n    }\n}\n"
+  }
+ },
+ {
+  "id": "swift/rock-paper-scissors",
+  "name": "Rock Paper Scissors",
+  "category": "Games",
+  "icon": "scissors",
+  "summary": "First to three wins against the computer.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nenum Move: String, CaseIterable {\n    case rock, paper, scissors\n\n    var beats: Move {\n        switch self {\n        case .rock: return .scissors\n        case .paper: return .rock\n        case .scissors: return .paper\n        }\n    }\n\n    init?(letter: String) {\n        guard let match = Move.allCases.first(where: { $0.rawValue.first == letter.lowercased().first }) else { return nil }\n        self = match\n    }\n}\n\nvar you = 0, computer = 0\nwhile you < 3 && computer < 3 {\n    print(\"rock, paper or scissors (r/p/s)? \", terminator: \"\")\n    guard let line = readLine() else { print(\"\\nBye!\"); exit(0) }\n    guard let mine = Move(letter: line) else { print(\"Type r, p or s.\"); continue }\n    let theirs = Move.allCases.randomElement()!\n    let result: String\n    if mine == theirs {\n        result = \"Draw.\"\n    } else if mine.beats == theirs {\n        you += 1\n        result = \"You win the round!\"\n    } else {\n        computer += 1\n        result = \"Computer wins the round.\"\n    }\n    print(\"You: \\(mine.rawValue)  Computer: \\(theirs.rawValue)  →  \\(result)  [\\(you)-\\(computer)]\")\n}\nprint(you > computer ? \"🏆 You won the match!\" : \"Computer takes the match.\")\n"
+  }
+ },
+ {
+  "id": "swift/hangman",
+  "name": "Hangman",
+  "category": "Games",
+  "icon": "figure.stand",
+  "summary": "Guess the word one letter at a time before your lives run out.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet words = [\"swift\", \"mango\", \"keyboard\", \"function\", \"variable\", \"galaxy\", \"puzzle\", \"rhythm\", \"island\", \"rocket\"]\nlet word = words.randomElement()!\nvar guessed = Set<Character>()\nvar lives = 6\n\nfunc shown() -> String { word.map { guessed.contains($0) ? String($0) : \"_\" }.joined(separator: \" \") }\n\nwhile lives > 0 && !Set(word).isSubset(of: guessed) {\n    let tried = guessed.sorted().map(String.init).joined(separator: \" \")\n    print(\"\\n\\(shown())   lives: \\(String(repeating: \"♥\", count: lives))   tried: \\(tried)\")\n    print(\"Letter: \", terminator: \"\")\n    guard let line = readLine() else { print(\"\\nThe word was \\(word). Bye!\"); exit(0) }\n    guard line.count == 1, let letter = line.lowercased().first, letter.isLetter else {\n        print(\"One letter, please.\")\n        continue\n    }\n    if guessed.contains(letter) {\n        print(\"You tried that already.\")\n    } else {\n        guessed.insert(letter)\n        if !word.contains(letter) {\n            lives -= 1\n            print(\"Nope.\")\n        }\n    }\n}\nprint(lives > 0 ? \"\\nYou got it: \\(word)! 🎉\" : \"\\nOut of lives. The word was \\(word).\")\n"
+  }
+ },
+ {
+  "id": "swift/tic-tac-toe",
+  "name": "Tic-Tac-Toe",
+  "category": "Games",
+  "icon": "number.square.fill",
+  "summary": "Play against a computer that can't be beaten (minimax).",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]\n\nfunc winner(_ b: [Character]) -> Character? {\n    for l in lines where b[l[0]] != \" \" && b[l[0]] == b[l[1]] && b[l[1]] == b[l[2]] { return b[l[0]] }\n    return b.contains(\" \") ? nil : \"D\"   // D = draw\n}\n\nfunc minimax(_ b: inout [Character], _ player: Character) -> (score: Int, move: Int) {\n    if let w = winner(b) { return (w == \"O\" ? 1 : w == \"X\" ? -1 : 0, -1) }\n    var best = (score: player == \"O\" ? -2 : 2, move: -1)\n    for i in 0..<9 where b[i] == \" \" {\n        b[i] = player\n        let score = minimax(&b, player == \"O\" ? \"X\" : \"O\").score\n        b[i] = \" \"\n        if (player == \"O\" && score > best.score) || (player == \"X\" && score < best.score) { best = (score, i) }\n    }\n    return best\n}\n\nfunc draw(_ b: [Character]) {\n    let rows = (0..<3).map { r in\n        (0..<3).map { c in b[r * 3 + c] == \" \" ? String(r * 3 + c + 1) : String(b[r * 3 + c]) }.joined(separator: \" | \")\n    }\n    print(\"\\n\" + rows.joined(separator: \"\\n---------\\n\") + \"\\n\")\n}\n\nvar board = [Character](repeating: \" \", count: 9)\nwhile winner(board) == nil {\n    draw(board)\n    print(\"Your move (1-9): \", terminator: \"\")\n    guard let line = readLine() else { print(\"\\nBye!\"); exit(0) }\n    guard let n = Int(line.trimmingCharacters(in: .whitespaces)), (1...9).contains(n), board[n - 1] == \" \" else {\n        print(\"Pick an empty square.\")\n        continue\n    }\n    board[n - 1] = \"X\"\n    if winner(board) == nil { board[minimax(&board, \"O\").move] = \"O\" }\n}\ndraw(board)\nswitch winner(board) {\ncase \"X\": print(\"You win?! That shouldn't happen.\")\ncase \"O\": print(\"Computer wins.\")\ndefault: print(\"It's a draw.\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/blackjack",
+  "name": "Blackjack",
+  "category": "Games",
+  "icon": "suit.spade.fill",
+  "summary": "Hit or stand against the dealer and try to reach 21.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nstruct Card: CustomStringConvertible {\n    let rank: String\n    let suit: String\n    var description: String { rank + suit }\n    var value: Int { rank == \"A\" ? 11 : [\"J\", \"Q\", \"K\"].contains(rank) ? 10 : Int(rank)! }\n}\n\nfunc newDeck() -> [Card] {\n    let ranks = [\"A\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"J\", \"Q\", \"K\"]\n    return ranks.flatMap { r in [\"♠\", \"♥\", \"♦\", \"♣\"].map { Card(rank: r, suit: $0) } }.shuffled()\n}\n\nfunc value(_ hand: [Card]) -> Int {\n    var total = hand.reduce(0) { $0 + $1.value }\n    var aces = hand.filter { $0.rank == \"A\" }.count\n    while total > 21 && aces > 0 {\n        total -= 10\n        aces -= 1\n    }\n    return total\n}\n\nfunc text(_ hand: [Card]) -> String { hand.map(\\.description).joined(separator: \" \") + \" (\\(value(hand)))\" }\n\nvar deck = newDeck()\nvar player = [deck.removeLast(), deck.removeLast()]\nvar dealer = [deck.removeLast(), deck.removeLast()]\n\nwhile value(player) < 21 {\n    print(\"Dealer shows \\(dealer[0]).  You: \\(text(player))\")\n    print(\"Hit or stand (h/s)? \", terminator: \"\")\n    guard let line = readLine(), line.lowercased().hasPrefix(\"h\") else { break }\n    player.append(deck.removeLast())\n}\nwhile value(dealer) < 17 && value(player) <= 21 { dealer.append(deck.removeLast()) }\n\nlet p = value(player), d = value(dealer)\nprint(\"\\nYou:    \\(text(player))\\nDealer: \\(text(dealer))\")\nif p > 21 {\n    print(\"Bust! Dealer wins.\")\n} else if d > 21 || p > d {\n    print(\"You win! 🎉\")\n} else if p == d {\n    print(\"Push (a tie).\")\n} else {\n    print(\"Dealer wins.\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/dice-roller",
+  "name": "Dice Roller",
+  "category": "Games",
+  "icon": "dice.fill",
+  "summary": "Roll tabletop dice like 2d6 or d20+5.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nstruct Roll {\n    let dice: [Int]\n    let bonus: Int\n    var total: Int { dice.reduce(0, +) + bonus }\n}\n\n/// Understands \"2d6\", \"d20+5\" and \"4d8-1\".\nfunc roll(_ text: String) -> Roll? {\n    let t = text.lowercased().replacingOccurrences(of: \" \", with: \"\")\n    let parts = t.split(separator: \"d\", maxSplits: 1, omittingEmptySubsequences: false)\n    guard parts.count == 2 else { return nil }\n    let count = parts[0].isEmpty ? 1 : Int(parts[0]) ?? 0\n    var sidesText = String(parts[1]), bonus = 0\n    if let i = sidesText.firstIndex(where: { $0 == \"+\" || $0 == \"-\" }) {\n        bonus = Int(sidesText[i...]) ?? 0\n        sidesText = String(sidesText[..<i])\n    }\n    guard let sides = Int(sidesText), (1...100).contains(count), (2...1000).contains(sides) else { return nil }\n    return Roll(dice: (0..<count).map { _ in Int.random(in: 1...sides) }, bonus: bonus)\n}\n\nfor sample in [\"2d6\", \"d20+5\", \"4d8-1\"] {\n    if let r = roll(sample) { print(\"\\(sample): \\(r.dice) = \\(r.total)\") }\n}\nprint(\"Roll dice (like 2d6 or d20+5). q to quit.\")\nwhile true {\n    print(\"> \", terminator: \"\")\n    guard let line = readLine(), line != \"q\", !line.isEmpty else { break }\n    if let r = roll(line) { print(\"\\(r.dice) = \\(r.total)\") } else { print(\"Write dice like 2d6 or d20+5.\") }\n}\n"
+  }
+ },
+ {
+  "id": "swift/text-adventure",
+  "name": "Text Adventure",
+  "category": "Games",
+  "icon": "map.fill",
+  "summary": "Explore rooms, find the key and escape. The map is a dictionary.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nstruct Room {\n    let text: String\n    var exits: [String: String] = [:]\n    var item: String? = nil\n    var locked: String? = nil\n    var isEnd = false\n}\n\nvar rooms: [String: Room] = [\n    \"hall\": Room(text: \"A dusty hall. Doors lead north and east.\", exits: [\"north\": \"library\", \"east\": \"kitchen\"]),\n    \"library\": Room(text: \"Shelves of old books. A brass key glints on a desk.\", exits: [\"south\": \"hall\"], item: \"key\"),\n    \"kitchen\": Room(text: \"A cold kitchen. A locked door leads north.\", exits: [\"west\": \"hall\", \"north\": \"garden\"], locked: \"north\"),\n    \"garden\": Room(text: \"Sunlight! You made it outside. 🌳\", isEnd: true),\n]\n\nvar current = \"hall\"\nvar bag = Set<String>()\nprint(\"Commands: north, south, east, west, take, bag, quit\")\n\nwhile true {\n    let here = rooms[current]!\n    print(\"\\n\" + here.text)\n    if here.isEnd { break }\n    print(\"> \", terminator: \"\")\n    guard let command = readLine()?.lowercased().trimmingCharacters(in: .whitespaces), command != \"quit\" else { break }\n    switch command {\n    case \"bag\":\n        print(\"You carry: \" + (bag.isEmpty ? \"nothing\" : bag.sorted().joined(separator: \", \")))\n    case \"take\":\n        if let item = here.item {\n            bag.insert(item)\n            rooms[current]!.item = nil\n            print(\"Taken.\")\n        } else {\n            print(\"Nothing to take here.\")\n        }\n    default:\n        if let next = here.exits[command] {\n            if here.locked == command && !bag.contains(\"key\") {\n                print(\"The door is locked.\")\n            } else {\n                current = next\n            }\n        } else {\n            print(\"You can't do that here.\")\n        }\n    }\n}\n"
+  }
+ },
+ {
+  "id": "swift/word-guess",
+  "name": "Word Guess (Wordle-style)",
+  "category": "Games",
+  "icon": "square.grid.3x3.fill",
+  "summary": "Six tries to find a five-letter word, with color hints.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// 🟩 right spot, 🟨 wrong spot, ⬛ not in the word.\nimport Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet words = [\"apple\", \"brick\", \"crane\", \"drive\", \"eagle\", \"flame\", \"grape\", \"house\", \"juice\", \"knife\",\n             \"lemon\", \"mango\", \"night\", \"ocean\", \"piano\", \"queen\", \"river\", \"stone\", \"tiger\", \"water\"]\n\nfunc score(_ guess: String, against answer: String) -> String {\n    let g = Array(guess), a = Array(answer)\n    var marks = [String](repeating: \"⬛\", count: 5)\n    var left: [Character?] = a\n    for i in 0..<5 where g[i] == a[i] {\n        marks[i] = \"🟩\"\n        left[i] = nil\n    }\n    for i in 0..<5 where marks[i] == \"⬛\" {\n        if let j = left.firstIndex(of: g[i]) {\n            marks[i] = \"🟨\"\n            left[j] = nil\n        }\n    }\n    return marks.joined()\n}\n\nlet answer = words.randomElement()!\nvar solved = false\nvar turn = 1\nwhile turn <= 6 && !solved {\n    print(\"Guess \\(turn)/6: \", terminator: \"\")\n    guard let line = readLine() else { break }\n    let guess = line.lowercased().trimmingCharacters(in: .whitespaces)\n    guard guess.count == 5, guess.allSatisfy({ $0.isLetter }) else {\n        print(\"Five letters, please.\")\n        continue\n    }\n    print(\"\\(score(guess, against: answer)) \\(guess.uppercased())\")\n    solved = guess == answer\n    turn += 1\n}\nprint(solved ? \"You got it! 🎉\" : \"The word was \\(answer.uppercased()).\")\n"
+  }
+ },
+ {
+  "id": "swift/quiz",
+  "name": "Quiz Game",
+  "category": "Games",
+  "icon": "lightbulb.fill",
+  "summary": "A multiple-choice quiz that keeps score. Add your own questions.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nstruct Question {\n    let text: String\n    let choices: [String]\n    let answer: Int\n}\n\nlet questions = [\n    Question(text: \"Which keyword declares a constant in Swift?\", choices: [\"var\", \"let\", \"const\", \"def\"], answer: 1),\n    Question(text: \"What does \\\"mango\\\".count return?\", choices: [\"4\", \"5\", \"6\", \"an error\"], answer: 1),\n    Question(text: \"Which of these is an optional Int?\", choices: [\"Int\", \"Int!\", \"Int?\", \"Maybe<Int>\"], answer: 2),\n    Question(text: \"What is 7 / 2 with two Ints?\", choices: [\"3.5\", \"3\", \"4\", \"1\"], answer: 1),\n    Question(text: \"Which type is copied when you assign it?\", choices: [\"class\", \"struct\", \"actor\", \"closure\"], answer: 1),\n].shuffled()\n\nlet letters = [\"a\", \"b\", \"c\", \"d\"]\nvar score = 0\nfor (n, q) in questions.enumerated() {\n    print(\"\\n\\(n + 1). \\(q.text)\")\n    for (i, choice) in q.choices.enumerated() { print(\"   \\(letters[i])) \\(choice)\") }\n    print(\"Answer: \", terminator: \"\")\n    guard let line = readLine() else { break }\n    if line.lowercased().hasPrefix(letters[q.answer]) {\n        score += 1\n        print(\"Correct ✅\")\n    } else {\n        print(\"Not quite. It's \\(letters[q.answer])) \\(q.choices[q.answer])\")\n    }\n}\nprint(\"\\nYou scored \\(score)/\\(questions.count).\")\n"
+  }
+ },
+ {
+  "id": "swift/todo-list",
+  "name": "To-Do List",
+  "category": "Tools",
+  "icon": "checklist",
+  "summary": "Add, tick off and remove tasks, saved as JSON with Codable.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nstruct Todo: Codable {\n    var text: String\n    var done = false\n}\n\nlet file = URL(fileURLWithPath: \"todos.json\")\n\nfunc load() -> [Todo] {\n    guard let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode([Todo].self, from: data) else {\n        return [Todo(text: \"Try the add command\"), Todo(text: \"Read this code\", done: true)]\n    }\n    return saved\n}\n\nfunc save(_ todos: [Todo]) {\n    if let data = try? JSONEncoder().encode(todos) { try? data.write(to: file) }\n}\n\nfunc show(_ todos: [Todo]) {\n    print(\"\")\n    if todos.isEmpty { print(\"Nothing to do. 🎉\") }\n    for (i, t) in todos.enumerated() { print(\"\\(i + 1). [\\(t.done ? \"x\" : \" \")] \\(t.text)\") }\n}\n\nvar todos = load()\nprint(\"Commands: add <task>, done <number>, remove <number>, quit\")\nwhile true {\n    show(todos)\n    print(\"> \", terminator: \"\")\n    guard let line = readLine(), !line.isEmpty, line != \"quit\" else { break }\n    let parts = line.split(separator: \" \", maxSplits: 1).map(String.init)\n    let rest = parts.count > 1 ? parts[1] : \"\"\n    switch parts[0] {\n    case \"add\" where !rest.isEmpty:\n        todos.append(Todo(text: rest))\n    case \"done\", \"remove\":\n        guard let n = Int(rest), todos.indices.contains(n - 1) else { print(\"Which number?\"); continue }\n        if parts[0] == \"done\" { todos[n - 1].done = true } else { todos.remove(at: n - 1) }\n    default:\n        print(\"Try: add Buy milk\")\n        continue\n    }\n    save(todos)\n}\n"
+  }
+ },
+ {
+  "id": "swift/password-generator",
+  "name": "Password Generator",
+  "category": "Tools",
+  "icon": "key.fill",
+  "summary": "Make strong random passwords and passphrases.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet lower = Array(\"abcdefghijklmnopqrstuvwxyz\")\nlet upper = Array(\"ABCDEFGHIJKLMNOPQRSTUVWXYZ\")\nlet digits = Array(\"0123456789\")\nlet symbols = Array(\"!@#$%^&*-_\")\nlet wordList = [\"mango\", \"river\", \"cloud\", \"tiger\", \"piano\", \"lemon\", \"rocket\", \"forest\", \"ember\", \"comet\", \"maple\", \"otter\"]\n\n// SystemRandomNumberGenerator is cryptographically secure, so these are safe to use.\nfunc password(length: Int = 16, useSymbols: Bool = true) -> String {\n    let sets = [lower, upper, digits] + (useSymbols ? [symbols] : [])\n    let all = sets.flatMap { $0 }\n    var chars = sets.map { $0.randomElement()! }          // at least one of each kind\n    while chars.count < length { chars.append(all.randomElement()!) }\n    return String(chars.shuffled())\n}\n\nfunc passphrase(words: Int = 4) -> String {\n    (0..<words).map { _ in wordList.randomElement()! }.joined(separator: \"-\") + String(Int.random(in: 10...99))\n}\n\nfunc strength(_ pw: String) -> String {\n    var pool = 0\n    if pw.contains(where: { $0.isLowercase }) { pool += 26 }\n    if pw.contains(where: { $0.isUppercase }) { pool += 26 }\n    if pw.contains(where: { $0.isNumber }) { pool += 10 }\n    if pw.contains(where: { !$0.isLetter && !$0.isNumber }) { pool += 20 }\n    let bits = Int(Double(pw.count) * log2(Double(max(pool, 1))))\n    return \"\\(bits) bits, \" + (bits < 40 ? \"weak\" : bits < 70 ? \"okay\" : \"strong\")\n}\n\nprint(\"Passwords:\")\nfor _ in 0..<3 { let pw = password(); print(\"  \\(pw)  (\\(strength(pw)))\") }\nprint(\"Passphrases (easier to remember):\")\nfor _ in 0..<3 { let pw = passphrase(); print(\"  \\(pw)  (\\(strength(pw)))\") }\nprint(\"\\nLength for a custom one [20]: \", terminator: \"\")\nlet length = Int(readLine()?.trimmingCharacters(in: .whitespaces) ?? \"\") ?? 20\nprint(password(length: min(max(length, 6), 128)))\n"
+  }
+ },
+ {
+  "id": "swift/unit-converter",
+  "name": "Unit Converter",
+  "category": "Tools",
+  "icon": "ruler.fill",
+  "summary": "Convert lengths, weights and volumes: 5 km to mi.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\n// Each unit is stored as \"how many base units\".\nlet tables: [[String: Double]] = [\n    [\"mm\": 0.001, \"cm\": 0.01, \"m\": 1, \"km\": 1000, \"in\": 0.0254, \"ft\": 0.3048, \"yd\": 0.9144, \"mi\": 1609.344],\n    [\"g\": 1, \"kg\": 1000, \"oz\": 28.3495, \"lb\": 453.592],\n    [\"ml\": 1, \"l\": 1000, \"cup\": 236.588, \"gal\": 3785.41],\n]\n\nfunc convert(_ value: Double, from: String, to: String) -> Double? {\n    for table in tables {\n        if let a = table[from], let b = table[to] { return value * a / b }\n    }\n    return nil\n}\n\nfunc answer(_ text: String) -> String {\n    let parts = text.lowercased().split(separator: \" \").map(String.init)\n    guard parts.count >= 3, let value = Double(parts[0]), let last = parts.last else { return \"Write it like: 5 km to mi\" }\n    guard let result = convert(value, from: parts[1], to: last) else { return \"Can't convert \\(parts[1]) to \\(last).\" }\n    return \"\\(parts[0]) \\(parts[1]) = \\(String(format: \"%.4g\", result)) \\(last)\"\n}\n\nfor sample in [\"5 km to mi\", \"150 lb to kg\", \"3 kg to km\"] { print(answer(sample)) }\nprint(\"Units: \" + tables.flatMap { $0.keys.sorted() }.joined(separator: \", \"))\nwhile true {\n    print(\"> \", terminator: \"\")\n    guard let line = readLine(), line != \"q\", !line.isEmpty else { break }\n    print(answer(line))\n}\n"
+  }
+ },
+ {
+  "id": "swift/text-stats",
+  "name": "Text Analyzer",
+  "category": "Tools",
+  "icon": "text.magnifyingglass",
+  "summary": "Count words and sentences and find the most common words.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet sample = \"\"\"\nSwift is a powerful and friendly programming language. It is fast, safe and expressive.\nSwift code reads almost like English, and many people learn Swift to build apps.\n\"\"\"\nlet common: Set<String> = [\"the\", \"a\", \"an\", \"and\", \"is\", \"it\", \"to\", \"of\", \"like\", \"many\"]\n\nfunc analyze(_ text: String) {\n    let words = text.lowercased()\n        .components(separatedBy: CharacterSet.letters.inverted)\n        .filter { !$0.isEmpty }\n    let sentences = text.components(separatedBy: CharacterSet(charactersIn: \".!?\"))\n        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }\n    var counts: [String: Int] = [:]\n    for w in words where !common.contains(w) { counts[w, default: 0] += 1 }\n    let top = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(5)\n    let letters = words.reduce(0) { $0 + $1.count }\n\n    print(\"Characters:      \\(text.count)\")\n    print(\"Words:           \\(words.count)\")\n    print(\"Sentences:       \\(sentences.count)\")\n    print(\"Avg word length: \" + String(format: \"%.1f\", Double(letters) / Double(max(words.count, 1))))\n    print(\"Reading time:    \\(max(1, words.count * 60 / 200)) seconds\")\n    print(\"Longest word:    \\(words.max { $0.count < $1.count } ?? \"\")\")\n    print(\"Top words:       \" + top.map { \"\\($0.key) (\\($0.value))\" }.joined(separator: \", \"))\n}\n\nprint(\"Type or paste text, then press return on an empty line (or just press return for a sample).\")\nvar lines: [String] = []\nwhile let line = readLine(), !line.isEmpty { lines.append(line) }\nanalyze(lines.isEmpty ? sample : lines.joined(separator: \"\\n\"))\n"
+  }
+ },
+ {
+  "id": "swift/caesar-cipher",
+  "name": "Secret Code (Caesar Cipher)",
+  "category": "Tools",
+  "icon": "lock.rotation",
+  "summary": "Scramble messages by shifting letters, then crack one without the key.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nfunc shift(_ text: String, by key: Int) -> String {\n    String(text.unicodeScalars.map { scalar -> Character in\n        let base: UInt32\n        switch scalar.value {\n        case 65...90: base = 65\n        case 97...122: base = 97\n        default: return Character(scalar)\n        }\n        let moved = (Int(scalar.value - base) + key % 26 + 26) % 26\n        return Character(UnicodeScalar(base + UInt32(moved))!)\n    })\n}\n\n/// Try all 26 keys and keep the one whose result looks most like English.\nfunc crack(_ secret: String) -> Int {\n    let commonLetters = Set(\"etaoinshr\")\n    return (0..<26).max { a, b in\n        let scoreA = shift(secret, by: -a).lowercased().filter { commonLetters.contains($0) }.count\n        let scoreB = shift(secret, by: -b).lowercased().filter { commonLetters.contains($0) }.count\n        return scoreA < scoreB\n    } ?? 0\n}\n\nprint(\"Message [Meet me at the mango tree at noon]: \", terminator: \"\")\nlet typed = readLine() ?? \"\"\nlet message = typed.isEmpty ? \"Meet me at the mango tree at noon\" : typed\nprint(\"Shift 1-25 [3]: \", terminator: \"\")\nlet key = Int(readLine() ?? \"\") ?? 3\n\nlet secret = shift(message, by: key)\nprint(\"Encoded: \\(secret)\")\nprint(\"Decoded: \\(shift(secret, by: -key))\")\nprint(\"Key found without being told: \\(crack(secret))\")\n"
+  }
+ },
+ {
+  "id": "swift/roman-numerals",
+  "name": "Roman Numerals",
+  "category": "Tools",
+  "icon": "textformat.123",
+  "summary": "Convert numbers to Roman numerals and back.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nlet table: [(value: Int, symbol: String)] = [\n    (1000, \"M\"), (900, \"CM\"), (500, \"D\"), (400, \"CD\"), (100, \"C\"), (90, \"XC\"),\n    (50, \"L\"), (40, \"XL\"), (10, \"X\"), (9, \"IX\"), (5, \"V\"), (4, \"IV\"), (1, \"I\"),\n]\n\nfunc toRoman(_ number: Int) -> String? {\n    guard (1...3999).contains(number) else { return nil }\n    var n = number, out = \"\"\n    for (value, symbol) in table {\n        while n >= value {\n            out += symbol\n            n -= value\n        }\n    }\n    return out\n}\n\nfunc fromRoman(_ text: String) -> Int? {\n    var rest = Substring(text.uppercased()), total = 0\n    for (value, symbol) in table {\n        while rest.hasPrefix(symbol) {\n            total += value\n            rest = rest.dropFirst(symbol.count)\n        }\n    }\n    // Reject things like IIII by checking the round trip.\n    return rest.isEmpty && toRoman(total) == text.uppercased() ? total : nil\n}\n\nfunc convert(_ item: String) -> String {\n    if let n = Int(item) { return toRoman(n) ?? \"use 1 to 3999\" }\n    return fromRoman(item).map(String.init) ?? \"not a valid Roman numeral\"\n}\n\nfor sample in [\"2024\", \"1994\", \"49\", \"MCMXCIV\", \"XLII\", \"IIII\"] { print(\"\\(sample) → \\(convert(sample))\") }\nprint(\"Type a number or a numeral (q to quit).\")\nwhile true {\n    print(\"> \", terminator: \"\")\n    guard let line = readLine()?.trimmingCharacters(in: .whitespaces), line != \"q\", !line.isEmpty else { break }\n    print(convert(line))\n}\n"
+  }
+ },
+ {
+  "id": "swift/bar-chart",
+  "name": "Text Bar Chart",
+  "category": "Tools",
+  "icon": "chart.bar.fill",
+  "summary": "Turn numbers into horizontal and vertical charts made of text.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nlet data: [(label: String, value: Int)] = [(\"Mon\", 12), (\"Tue\", 18), (\"Wed\", 7), (\"Thu\", 22), (\"Fri\", 15), (\"Sat\", 30), (\"Sun\", 26)]\nlet top = data.map(\\.value).max() ?? 1\n\nprint(\"Steps (thousands) this week\\n\")\nfor (label, value) in data {\n    print(\"\\(label) │\\(String(repeating: \"█\", count: 30 * value / top)) \\(value)\")\n}\n\nprint(\"\")\nlet height = 8\nfor level in stride(from: height, through: 1, by: -1) {\n    print(data.map { $0.value * height / top >= level ? \" ██ \" : \"    \" }.joined(separator: \" \"))\n}\nprint(data.map { \" \\($0.label)\" }.joined(separator: \" \"))\n\nlet total = data.reduce(0) { $0 + $1.value }\nlet best = data.max { $0.value < $1.value }!\nprint(\"\\nTotal \\(total), average \" + String(format: \"%.1f\", Double(total) / Double(data.count)) + \", best day \\(best.label)\")\n\nlet blocks = Array(\"▁▂▃▄▅▆▇█\")\nprint(\"Sparkline: \" + String(data.map { blocks[$0.value * (blocks.count - 1) / top] }))\n"
+  }
+ },
+ {
+  "id": "swift/sorting-visualizer",
+  "name": "Sorting Visualizer",
+  "category": "Algorithms",
+  "icon": "chart.bar.xaxis",
+  "summary": "Watch bubble, insertion and quick sort work, and count their steps.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nfunc show(_ values: [Int], _ note: String = \"\") {\n    print(values.map { String(format: \"%2d\", $0) }.joined(separator: \" \") + \"   \" + note)\n}\n\nfunc bubble(_ input: [Int]) -> Int {\n    var a = input, steps = 0\n    for end in stride(from: a.count - 1, to: 0, by: -1) {\n        for i in 0..<end {\n            steps += 1\n            if a[i] > a[i + 1] { a.swapAt(i, i + 1) }\n        }\n        show(a, \"largest \\(a[end]) bubbled to the end\")\n    }\n    return steps\n}\n\nfunc insertion(_ input: [Int]) -> Int {\n    var a = input, steps = 0\n    for i in 1..<a.count {\n        let item = a[i]\n        var j = i - 1\n        while j >= 0 && a[j] > item {\n            a[j + 1] = a[j]\n            j -= 1\n            steps += 1\n        }\n        a[j + 1] = item\n        show(a, \"inserted \\(item)\")\n    }\n    return steps\n}\n\nfunc quick(_ input: [Int]) -> Int {\n    var steps = 0\n    func sort(_ a: [Int]) -> [Int] {\n        guard let pivot = a.first else { return [] }\n        let rest = a.dropFirst()\n        steps += rest.count\n        return sort(rest.filter { $0 < pivot }) + [pivot] + sort(rest.filter { $0 >= pivot })\n    }\n    show(sort(input), \"sorted by splitting around pivots\")\n    return steps\n}\n\nlet values = (0..<8).map { _ in Int.random(in: 1...40) }\nlet sorts: [(String, ([Int]) -> Int)] = [(\"Bubble sort\", bubble), (\"Insertion sort\", insertion), (\"Quicksort\", quick)]\nfor (name, sort) in sorts {\n    print(\"\\n\\(name)\")\n    show(values, \"start\")\n    print(\"  \\(sort(values)) comparisons\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/binary-search",
+  "name": "Binary Search",
+  "category": "Algorithms",
+  "icon": "magnifyingglass.circle.fill",
+  "summary": "Find a value in a sorted list by halving the search each step.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\n/// Works on any sorted array of comparable things.\nfunc binarySearch<T: Comparable>(_ items: [T], for target: T) -> (index: Int?, steps: Int) {\n    var low = 0, high = items.count - 1, steps = 0\n    while low <= high {\n        let mid = (low + high) / 2\n        steps += 1\n        print(\"  step \\(steps): position \\(mid) holds \\(items[mid]) (searching \\(low)–\\(high))\")\n        if items[mid] == target { return (mid, steps) }\n        if items[mid] < target { low = mid + 1 } else { high = mid - 1 }\n    }\n    return (nil, steps)\n}\n\nlet items = (1...99).map { $0 * 3 }   // 3, 6, 9 … 297\nprint(\"Number to find in \\(items.count) sorted numbers [201]: \", terminator: \"\")\nlet target = Int(readLine() ?? \"\") ?? 201\nlet result = binarySearch(items, for: target)\nprint(result.index.map { \"Found at position \\($0).\" } ?? \"Not in the list.\")\nprint(\"Binary search took \\(result.steps) steps; checking one by one could take \\(items.count).\")\n\nprint(\"\\nIt works for words too:\")\n_ = binarySearch([\"apple\", \"banana\", \"cherry\", \"grape\", \"mango\", \"peach\"], for: \"mango\")\n"
+  }
+ },
+ {
+  "id": "swift/fibonacci",
+  "name": "Fibonacci Three Ways",
+  "category": "Algorithms",
+  "icon": "function",
+  "summary": "Slow recursion, memoization and a lazy sequence, timed against each other.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nfunc fibSlow(_ n: Int) -> Int { n < 2 ? n : fibSlow(n - 1) + fibSlow(n - 2) }\n\nvar cache: [Int: Int] = [:]\nfunc fibFast(_ n: Int) -> Int {\n    if n < 2 { return n }\n    if let known = cache[n] { return known }\n    let value = fibFast(n - 1) + fibFast(n - 2)\n    cache[n] = value\n    return value\n}\n\n/// An endless sequence: values are only worked out when asked for.\nstruct Fibonacci: Sequence, IteratorProtocol {\n    var a = 0, b = 1\n    mutating func next() -> Int? {\n        defer { (a, b) = (b, a &+ b) }\n        return a\n    }\n}\n\nfunc timed(_ label: String, _ n: Int, _ fn: (Int) -> Int) {\n    let start = Date()\n    let result = fn(n)\n    let ms = Date().timeIntervalSince(start) * 1000\n    print(\"fib(\\(n)) = \\(result)  \\(label)  \" + String(format: \"%.3f ms\", ms))\n}\n\ntimed(\"plain recursion\", 27, fibSlow)\ntimed(\"with a cache   \", 27, fibFast)\nprint(\"First 15: \\(Array(Fibonacci().prefix(15)))\")\nprint(\"fib(90) with the cache: \\(fibFast(90))\")\nprint(\"First over a million: \\(Fibonacci().first { $0 > 1_000_000 } ?? 0)\")\n"
+  }
+ },
+ {
+  "id": "swift/prime-sieve",
+  "name": "Prime Numbers",
+  "category": "Algorithms",
+  "icon": "number.square.fill",
+  "summary": "Find every prime up to a limit, and split numbers into prime factors.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nfunc sieve(upTo limit: Int) -> [Int] {\n    guard limit >= 2 else { return [] }\n    var isPrime = [Bool](repeating: true, count: limit + 1)\n    isPrime[0] = false\n    isPrime[1] = false\n    var n = 2\n    while n * n <= limit {\n        if isPrime[n] {\n            for multiple in stride(from: n * n, through: limit, by: n) { isPrime[multiple] = false }\n        }\n        n += 1\n    }\n    return isPrime.indices.filter { isPrime[$0] }\n}\n\nfunc factors(of number: Int) -> [Int] {\n    var n = number, d = 2, out: [Int] = []\n    while d * d <= n {\n        while n % d == 0 {\n            out.append(d)\n            n /= d\n        }\n        d += 1\n    }\n    if n > 1 { out.append(n) }\n    return out\n}\n\nprint(\"Find primes up to [100]: \", terminator: \"\")\nlet limit = min(max(Int(readLine() ?? \"\") ?? 100, 2), 1_000_000)\nlet primes = sieve(upTo: limit)\nprint(\"\\(primes.count) primes up to \\(limit):\")\nprint(primes.count <= 60 ? \"\\(primes)\" : \"\\(Array(primes.prefix(30))) … \\(Array(primes.suffix(5)))\")\nfor n in [limit, 360, 97, 1001] {\n    print(\"\\(n) = \" + factors(of: n).map(String.init).joined(separator: \" × \"))\n}\n"
+  }
+ },
+ {
+  "id": "swift/maze-solver",
+  "name": "Maze Solver",
+  "category": "Algorithms",
+  "icon": "arrow.triangle.turn.up.right.diamond.fill",
+  "summary": "Find the shortest way through a maze with breadth-first search.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// Edit the maze: # is a wall, S the start, E the end.\nimport Foundation\n\nlet maze = \"\"\"\n##########\n#S   #   #\n# ## # # #\n# #    # #\n# #### # #\n#    #   #\n#### # ###\n#      E #\n##########\n\"\"\".split(separator: \"\\n\").map { Array($0) }\n\nstruct Point: Hashable {\n    let row: Int\n    let col: Int\n}\n\nfunc find(_ char: Character) -> Point? {\n    for (r, row) in maze.enumerated() {\n        if let c = row.firstIndex(of: char) { return Point(row: r, col: c) }\n    }\n    return nil\n}\n\nfunc solve() -> [Point]? {\n    guard let start = find(\"S\"), let end = find(\"E\") else { return nil }\n    var cameFrom: [Point: Point] = [:]\n    var seen: Set<Point> = [start]\n    var queue = [start]\n    var head = 0\n    while head < queue.count {\n        let here = queue[head]\n        head += 1\n        if here == end {\n            var path = [end]\n            while let previous = cameFrom[path[0]] { path.insert(previous, at: 0) }\n            return path\n        }\n        for (dr, dc) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {\n            let next = Point(row: here.row + dr, col: here.col + dc)\n            if maze[next.row][next.col] != \"#\" && !seen.contains(next) {\n                seen.insert(next)\n                cameFrom[next] = here\n                queue.append(next)\n            }\n        }\n    }\n    return nil\n}\n\nif let path = solve() {\n    let steps = Set(path.dropFirst().dropLast())\n    for (r, row) in maze.enumerated() {\n        print(String(row.enumerated().map { c, ch in steps.contains(Point(row: r, col: c)) ? \"•\" : ch }))\n    }\n    print(\"\\nShortest path: \\(path.count - 1) steps\")\n} else {\n    print(\"No way through!\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/n-queens",
+  "name": "N-Queens Puzzle",
+  "category": "Algorithms",
+  "icon": "crown.fill",
+  "summary": "Place queens so none can attack another, using backtracking.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nfunc solve(_ n: Int) -> [[Int]] {\n    var solutions: [[Int]] = []\n    var cols: [Int] = []\n\n    func safe(_ row: Int, _ col: Int) -> Bool {\n        for (r, c) in cols.enumerated() where c == col || abs(c - col) == row - r { return false }\n        return true\n    }\n\n    func place(_ row: Int) {\n        if row == n {\n            solutions.append(cols)\n            return\n        }\n        for col in 0..<n where safe(row, col) {\n            cols.append(col)\n            place(row + 1)\n            cols.removeLast()\n        }\n    }\n\n    place(0)\n    return solutions\n}\n\nprint(\"Board size 4-9 [6]: \", terminator: \"\")\nlet typed = Int(readLine() ?? \"\") ?? 6\nlet n = (4...9).contains(typed) ? typed : 6\nlet solutions = solve(n)\nprint(\"\\(solutions.count) ways to place \\(n) queens. The first:\\n\")\nfor col in solutions[0] {\n    print((0..<n).map { $0 == col ? \"♛\" : \"·\" }.joined(separator: \" \"))\n}\nprint(\"\\nSolutions by board size: \" + (4...8).map { \"\\($0)→\\(solve($0).count)\" }.joined(separator: \"  \"))\n"
+  }
+ },
+ {
+  "id": "swift/sudoku-solver",
+  "name": "Sudoku Solver",
+  "category": "Algorithms",
+  "icon": "square.grid.3x3.topleft.filled",
+  "summary": "Solve any sudoku with backtracking. Edit the puzzle and run again.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// 0 means an empty square.\nimport Foundation\n\nlet puzzle = [\n    \"530070000\", \"600195000\", \"098000060\",\n    \"800060003\", \"400803001\", \"700020006\",\n    \"060000280\", \"000419005\", \"000080079\",\n]\n\nvar grid = puzzle.map { $0.map { Int(String($0))! } }\nvar tries = 0\n\nfunc options(_ r: Int, _ c: Int) -> [Int] {\n    var used = Set(grid[r])\n    for i in 0..<9 { used.insert(grid[i][c]) }\n    let br = r / 3 * 3, bc = c / 3 * 3\n    for i in 0..<3 { for j in 0..<3 { used.insert(grid[br + i][bc + j]) } }\n    return (1...9).filter { !used.contains($0) }\n}\n\nfunc solve() -> Bool {\n    for r in 0..<9 {\n        for c in 0..<9 where grid[r][c] == 0 {\n            for digit in options(r, c) {\n                tries += 1\n                grid[r][c] = digit\n                if solve() { return true }\n                grid[r][c] = 0\n            }\n            return false\n        }\n    }\n    return true\n}\n\nfunc draw() {\n    for (r, row) in grid.enumerated() {\n        if r % 3 == 0 && r > 0 { print(\"------+-------+------\") }\n        let groups = stride(from: 0, to: 9, by: 3).map { i in\n            row[i..<i + 3].map { $0 == 0 ? \"·\" : String($0) }.joined(separator: \" \")\n        }\n        print(groups.joined(separator: \" | \"))\n    }\n}\n\ndraw()\nif solve() {\n    print(\"\\nSolved after trying \\(tries) digits:\\n\")\n    draw()\n} else {\n    print(\"\\nThis puzzle has no solution.\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/game-of-life",
+  "name": "Game of Life",
+  "category": "Algorithms",
+  "icon": "circle.grid.cross.fill",
+  "summary": "Conway's cell simulation: three simple rules make gliders and blinkers.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// A live cell survives with 2 or 3 neighbours; an empty cell with exactly 3 comes alive.\nimport Foundation\n\nstruct Cell: Hashable {\n    let x: Int\n    let y: Int\n}\n\nlet width = 24, height = 10\n\nfunc step(_ alive: Set<Cell>) -> Set<Cell> {\n    var counts: [Cell: Int] = [:]\n    for cell in alive {\n        for dx in -1...1 {\n            for dy in -1...1 where dx != 0 || dy != 0 {\n                let neighbour = Cell(x: (cell.x + dx + width) % width, y: (cell.y + dy + height) % height)\n                counts[neighbour, default: 0] += 1\n            }\n        }\n    }\n    return Set(counts.filter { $0.value == 3 || ($0.value == 2 && alive.contains($0.key)) }.keys)\n}\n\nfunc draw(_ alive: Set<Cell>, generation: Int) {\n    print(\"Generation \\(generation) (\\(alive.count) cells)\")\n    for y in 0..<height {\n        print(String((0..<width).map { alive.contains(Cell(x: $0, y: y)) ? Character(\"█\") : Character(\"·\") }))\n    }\n    print(\"\")\n}\n\nlet glider = [(1, 0), (2, 1), (0, 2), (1, 2), (2, 2)]\nlet blinker = [(12, 4), (13, 4), (14, 4)]\nvar alive = Set((glider + blinker).map { Cell(x: $0.0, y: $0.1) })\nfor generation in 0..<6 {\n    draw(alive, generation: generation)\n    alive = step(alive)\n}\n"
+  }
+ },
+ {
+  "id": "swift/tower-of-hanoi",
+  "name": "Tower of Hanoi",
+  "category": "Algorithms",
+  "icon": "square.stack.3d.up.fill",
+  "summary": "Move a stack of discs between pegs with a short recursive rule.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\nsetvbuf(stdout, nil, _IONBF, 0)\n\nprint(\"Discs 1-5 [3]: \", terminator: \"\")\nlet typed = Int(readLine() ?? \"\") ?? 3\nlet discs = (1...5).contains(typed) ? typed : 3\nvar pegs: [[Int]] = [Array((1...discs).reversed()), [], []]\nvar moves = 0\nlet names = [\"A\", \"B\", \"C\"]\n\nfunc center(_ s: String) -> String {\n    let pad = discs * 2 + 1 - s.count\n    return String(repeating: \" \", count: pad / 2) + s + String(repeating: \" \", count: pad - pad / 2)\n}\n\nfunc draw() {\n    for level in stride(from: discs - 1, through: 0, by: -1) {\n        print(pegs.map { peg in\n            center(level < peg.count ? String(repeating: \"█\", count: peg[level] * 2 - 1) : \"|\")\n        }.joined())\n    }\n    print(names.map(center).joined() + \"\\n\")\n}\n\nfunc hanoi(_ n: Int, from: Int, to: Int, spare: Int) {\n    if n == 0 { return }\n    hanoi(n - 1, from: from, to: spare, spare: to)\n    pegs[to].append(pegs[from].removeLast())\n    moves += 1\n    print(\"Move \\(moves): \\(names[from]) → \\(names[to])\")\n    draw()\n    hanoi(n - 1, from: spare, to: to, spare: from)\n}\n\ndraw()\nhanoi(discs, from: 0, to: 2, spare: 1)\nprint(\"Solved in \\(moves) moves (the minimum is 2^\\(discs) - 1 = \\((1 << discs) - 1)).\")\n"
+  }
+ },
+ {
+  "id": "swift/optionals",
+  "name": "Optionals",
+  "category": "Learn Swift",
+  "icon": "questionmark.diamond.fill",
+  "summary": "Swift's way of saying \"there might be no value\", and every way to unwrap one.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// An optional either holds a value or is nil. Swift makes you deal with the nil case.\nimport Foundation\n\nlet ages = [\"Ada\": 36, \"Linus\": 28]\nlet known: Int? = ages[\"Ada\"]        // looking something up might find nothing\nlet unknown: Int? = ages[\"Nobody\"]\nprint(\"known: \\(String(describing: known)), unknown: \\(String(describing: unknown))\")\n\n// 1. if let: use the value only if it's there.\nif let age = known { print(\"if let: Ada is \\(age)\") }\nif let age = unknown { print(age) } else { print(\"if let: no age for Nobody\") }\n\n// 2. guard let: leave early when it's missing.\nfunc describe(_ name: String) -> String {\n    guard let age = ages[name] else { return \"\\(name): unknown\" }\n    return \"\\(name): \\(age) years old\"\n}\nprint(\"guard: \\(describe(\"Linus\")) | \\(describe(\"Grace\"))\")\n\n// 3. ?? gives a default.\nprint(\"default: \\(unknown ?? 0)\")\n\n// 4. Optional chaining: stop at the first nil instead of crashing.\nstruct Address { var city: String }\nstruct Person { var name: String; var address: Address? }\nlet people = [Person(name: \"Ada\", address: Address(city: \"London\")), Person(name: \"Bob\", address: nil)]\nfor p in people { print(\"chaining: \\(p.name) lives in \\(p.address?.city.uppercased() ?? \"an unknown place\")\") }\n\n// 5. map transforms the value if there is one.\nlet doubled = known.map { $0 * 2 }\nprint(\"map: \\(doubled ?? -1)\")\n\n// 6. Converting text can fail, so it returns an optional.\nfor text in [\"42\", \"forty-two\"] {\n    if let number = Int(text) { print(\"Int(\\\"\\(text)\\\") = \\(number)\") } else { print(\"Int(\\\"\\(text)\\\") is nil\") }\n}\n\n// 7. compactMap drops the nils.\nprint(\"compactMap: \\([\"1\", \"two\", \"3\", \"four\"].compactMap { Int($0) })\")\n\n// Force-unwrapping with ! crashes on nil. Only use it when nil is truly impossible.\nprint(\"force unwrap (safe here): \\(known!)\")\n"
+  }
+ },
+ {
+  "id": "swift/structs-classes",
+  "name": "Structs vs Classes",
+  "category": "Learn Swift",
+  "icon": "square.on.square",
+  "summary": "Value types get copied, reference types get shared. See the difference.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nstruct PointStruct {\n    var x: Int\n    var y: Int\n\n    // A method that changes a struct must say so.\n    mutating func move(dx: Int, dy: Int) {\n        x += dx\n        y += dy\n    }\n}\n\nfinal class PointClass {\n    var x: Int\n    var y: Int\n    init(x: Int, y: Int) {\n        self.x = x\n        self.y = y\n    }\n}\n\n// Structs are copied: changing the copy leaves the original alone.\nvar a = PointStruct(x: 1, y: 1)\nvar b = a\nb.move(dx: 10, dy: 0)\nprint(\"struct: a.x = \\(a.x), b.x = \\(b.x)   (independent copies)\")\n\n// Classes are shared: both names point at the same object.\nlet c = PointClass(x: 1, y: 1)\nlet d = c\nd.x += 10\nprint(\"class:  c.x = \\(c.x), d.x = \\(d.x)  (same object)\")\nprint(\"same object? \\(c === d)\")\n\n// Structs get a free initializer and work well with protocols.\nstruct Player: Equatable, CustomStringConvertible {\n    var name: String\n    var score = 0\n    var description: String { \"\\(name) (\\(score))\" }\n}\nvar team = [Player(name: \"Ada\"), Player(name: \"Bob\", score: 5)]\nteam[0].score += 3\nprint(\"players: \\(team), equal? \\(team[0] == Player(name: \"Ada\", score: 3))\")\n\n// Classes can inherit, and can clean up when they go away.\nclass Animal {\n    let name: String\n    init(name: String) { self.name = name }\n    func speak() -> String { \"...\" }\n    deinit { print(\"  (\\(name) was freed)\") }\n}\nclass Dog: Animal {\n    override func speak() -> String { \"Woof\" }\n}\ndo {\n    let pet: Animal = Dog(name: \"Rex\")\n    print(\"\\(pet.name) says \\(pet.speak())\")\n}\nprint(\"Rule of thumb: start with a struct; use a class when things must be shared.\")\n"
+  }
+ },
+ {
+  "id": "swift/enums",
+  "name": "Enums & Pattern Matching",
+  "category": "Learn Swift",
+  "icon": "list.bullet.indent",
+  "summary": "Enums with attached data, switch statements, and a tiny expression calculator.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\n// A simple enum with raw values.\nenum Planet: Int, CaseIterable {\n    case mercury = 1, venus, earth, mars\n    var name: String { String(describing: self).capitalized }\n}\nprint(Planet.allCases.map { \"\\($0.rawValue). \\($0.name)\" }.joined(separator: \"  \"))\nprint(\"Planet 3 is \\(Planet(rawValue: 3)?.name ?? \"unknown\"); planet 9 is \\(Planet(rawValue: 9)?.name ?? \"unknown\")\")\n\n// Cases can carry different data.\nenum Shape {\n    case circle(radius: Double)\n    case rectangle(width: Double, height: Double)\n    case triangle(base: Double, height: Double)\n\n    var area: Double {\n        switch self {\n        case .circle(let r): return Double.pi * r * r\n        case .rectangle(let w, let h): return w * h\n        case .triangle(let b, let h): return b * h / 2\n        }\n    }\n}\nlet shapes: [Shape] = [.circle(radius: 1), .rectangle(width: 3, height: 4), .triangle(base: 6, height: 2)]\nfor s in shapes { print(\"\\(s) has area \" + String(format: \"%.2f\", s.area)) }\n\n// switch can match ranges, tuples and conditions.\nfunc grade(_ score: Int) -> String {\n    switch score {\n    case 90...100: return \"A\"\n    case 80..<90: return \"B\"\n    case 70..<80: return \"C\"\n    case let s where s < 0 || s > 100: return \"invalid\"\n    default: return \"F\"\n    }\n}\nprint([95, 83, 71, 40, 120].map { \"\\($0)→\\(grade($0))\" }.joined(separator: \"  \"))\n\n// A result that is either a value or an error message.\nenum Download {\n    case success(bytes: Int)\n    case failure(reason: String)\n}\nfor result in [Download.success(bytes: 2048), .failure(reason: \"no connection\")] {\n    if case .success(let bytes) = result { print(\"Got \\(bytes) bytes\") } else { print(\"Failed: \\(result)\") }\n}\n\n// indirect lets an enum contain itself: here, a tree for sums.\nindirect enum Expr {\n    case number(Double)\n    case add(Expr, Expr)\n    case multiply(Expr, Expr)\n\n    func evaluate() -> Double {\n        switch self {\n        case .number(let n): return n\n        case .add(let a, let b): return a.evaluate() + b.evaluate()\n        case .multiply(let a, let b): return a.evaluate() * b.evaluate()\n        }\n    }\n}\nlet sum = Expr.add(.number(2), .multiply(.number(3), .number(4)))\nprint(\"2 + 3 × 4 = \\(sum.evaluate())\")\n"
+  }
+ },
+ {
+  "id": "swift/protocols",
+  "name": "Protocols & Extensions",
+  "category": "Learn Swift",
+  "icon": "puzzlepiece.fill",
+  "summary": "Describe what types can do, then add features to any type, even built-in ones.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\n// A protocol is a list of requirements.\nprotocol Describable {\n    var summary: String { get }\n}\n\nprotocol Priced {\n    var price: Double { get }\n}\n\n// An extension can give every conforming type free behaviour.\nextension Priced {\n    var priceWithTax: Double { price * 1.08 }\n    var label: String { String(format: \"$%.2f\", priceWithTax) }\n}\n\nstruct Book: Describable, Priced {\n    let title: String\n    let price: Double\n    var summary: String { \"Book: \\(title)\" }\n}\n\nstruct Coffee: Describable, Priced {\n    let size: String\n    var price: Double { size == \"large\" ? 4.5 : 3.0 }\n    var summary: String { \"\\(size.capitalized) coffee\" }\n}\n\n// One array, different types, same protocol.\nlet cart: [Describable & Priced] = [Book(title: \"Dune\", price: 12), Coffee(size: \"large\"), Coffee(size: \"small\")]\nfor item in cart { print(\"\\(item.summary) — \\(item.label)\") }\nprint(\"Total with tax: \" + String(format: \"$%.2f\", cart.reduce(0) { $0 + $1.priceWithTax }))\n\n// Extensions add to types you didn't write.\nextension Int {\n    var isEven: Bool { self % 2 == 0 }\n    func times(_ action: () -> Void) { for _ in 0..<self { action() } }\n}\nextension String {\n    var isPalindrome: Bool {\n        let letters = lowercased().filter { $0.isLetter }\n        return letters == String(letters.reversed())\n    }\n}\nprint(\"4.isEven: \\(4.isEven), \\\"Racecar\\\".isPalindrome: \\(\"Racecar\".isPalindrome)\")\n3.times { print(\"hip\", terminator: \" \") }\nprint(\"hooray!\")\n\n// Extend only some collections: here, arrays of numbers.\nextension Array where Element: Numeric {\n    var total: Element { reduce(0, +) }\n}\nprint(\"[1, 2, 3].total = \\([1, 2, 3].total), [1.5, 2.5].total = \\([1.5, 2.5].total)\")\n\n// Conforming to built-in protocols gives you sorting and printing.\nstruct Version: Comparable, CustomStringConvertible {\n    let major: Int\n    let minor: Int\n    var description: String { \"\\(major).\\(minor)\" }\n    static func < (a: Version, b: Version) -> Bool { (a.major, a.minor) < (b.major, b.minor) }\n}\nlet versions = [Version(major: 2, minor: 1), Version(major: 1, minor: 9), Version(major: 2, minor: 0)]\nprint(\"sorted: \\(versions.sorted()), newest: \\(versions.max()!)\")\n"
+  }
+ },
+ {
+  "id": "swift/generics",
+  "name": "Generics",
+  "category": "Learn Swift",
+  "icon": "arrow.triangle.swap",
+  "summary": "Write one function or type that works for many kinds of data.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\n// One function for every type that can be compared.\nfunc largest<T: Comparable>(_ items: [T]) -> T? {\n    guard var best = items.first else { return nil }\n    for item in items where item > best { best = item }\n    return best\n}\nprint(largest([3, 9, 4]) ?? 0, largest([\"pear\", \"apple\", \"zebra\"]) ?? \"\", largest([2.5, 1.5]) ?? 0)\n\n// A generic type: a stack of anything.\nstruct Stack<Element> {\n    private var items: [Element] = []\n    var isEmpty: Bool { items.isEmpty }\n    var count: Int { items.count }\n    var top: Element? { items.last }\n    mutating func push(_ item: Element) { items.append(item) }\n    mutating func pop() -> Element? { items.popLast() }\n}\n\nvar numbers = Stack<Int>()\nfor n in 1...3 { numbers.push(n) }\nprint(\"popped \\(numbers.pop() ?? 0), top is now \\(numbers.top ?? 0), \\(numbers.count) left\")\n\n// Using the stack: check that brackets are balanced.\nfunc isBalanced(_ text: String) -> Bool {\n    let pairs: [Character: Character] = [\")\": \"(\", \"]\": \"[\", \"}\": \"{\"]\n    var stack = Stack<Character>()\n    for ch in text {\n        if pairs.values.contains(ch) {\n            stack.push(ch)\n        } else if let opener = pairs[ch] {\n            if stack.pop() != opener { return false }\n        }\n    }\n    return stack.isEmpty\n}\nfor sample in [\"{[()]}\", \"([)]\", \"(((\"] { print(\"\\(sample) balanced? \\(isBalanced(sample))\") }\n\n// Extra abilities only when the element allows it.\nextension Stack where Element: Equatable {\n    func contains(_ item: Element) -> Bool { items.contains(item) }\n}\nprint(\"stack contains 1? \\(numbers.contains(1))\")\n\n// Two type parameters, and a constraint written with where.\nfunc pairs<A, B>(_ first: [A], _ second: [B]) -> [(A, B)] { Array(zip(first, second)) }\nprint(pairs([\"a\", \"b\"], [1, 2]))\n\nfunc countMatches<S: Sequence>(in items: S, where test: (S.Element) -> Bool) -> Int {\n    var n = 0\n    for item in items where test(item) { n += 1 }\n    return n\n}\nprint(\"evens in 1...10: \\(countMatches(in: 1...10) { $0 % 2 == 0 }), vowels in \\\"mango\\\": \\(countMatches(in: \"mango\") { \"aeiou\".contains($0) })\")\n\n// A small generic cache.\nstruct Cache<Key: Hashable, Value> {\n    private var storage: [Key: Value] = [:]\n    mutating func value(for key: Key, orCompute make: () -> Value) -> Value {\n        if let hit = storage[key] { return hit }\n        let made = make()\n        storage[key] = made\n        return made\n    }\n}\nvar squares = Cache<Int, Int>()\nvar computed = 0\nfor n in [4, 4, 4, 5] { _ = squares.value(for: n) { computed += 1; return n * n } }\nprint(\"4 lookups, \\(computed) real calculations\")\n"
+  }
+ },
+ {
+  "id": "swift/closures",
+  "name": "Closures",
+  "category": "Learn Swift",
+  "icon": "curlybraces",
+  "summary": "Functions you can store and pass around: sorting, callbacks and capturing values.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\n// A closure is a function without a name. These four lines mean the same thing.\nlet double1 = { (n: Int) -> Int in return n * 2 }\nlet double2: (Int) -> Int = { n in n * 2 }\nlet double3: (Int) -> Int = { $0 * 2 }\nfunc double4(_ n: Int) -> Int { n * 2 }\nprint(double1(21), double2(21), double3(21), double4(21))\n\n// Passing closures to functions.\nlet names = [\"Linus\", \"ada\", \"Grace\", \"alan\"]\nprint(\"sorted, ignoring case: \\(names.sorted { $0.lowercased() < $1.lowercased() })\")\nprint(\"longest first:         \\(names.sorted { $0.count > $1.count })\")\n\n// Your own function that takes a closure.\nfunc repeatTask(_ times: Int, _ task: (Int) -> Void) {\n    for i in 1...times { task(i) }\n}\nrepeatTask(3) { print(\"  step \\($0)\") }\n\n// Closures capture the variables around them.\nfunc makeCounter(start: Int = 0) -> () -> Int {\n    var count = start\n    return {\n        count += 1\n        return count\n    }\n}\nlet countA = makeCounter(), countB = makeCounter(start: 100)\nprint(\"counters: \\(countA()), \\(countA()), \\(countB()), \\(countA())\")\n\n// Returning functions: build new behaviour from pieces.\nfunc multiplier(_ factor: Int) -> (Int) -> Int { { $0 * factor } }\nlet triple = multiplier(3)\nprint(\"triple(14) = \\(triple(14))\")\n\nfunc compose<A, B, C>(_ f: @escaping (A) -> B, _ g: @escaping (B) -> C) -> (A) -> C { { g(f($0)) } }\nlet shout = compose({ (s: String) in s.uppercased() }, { $0 + \"!\" })\nprint(shout(\"hello\"))\n\n// Storing closures: a dictionary of operations.\nlet operations: [String: (Double, Double) -> Double] = [\"+\": (+), \"-\": (-), \"×\": (*), \"÷\": (/)]\nfor symbol in [\"+\", \"-\", \"×\", \"÷\"] { print(\"12 \\(symbol) 4 = \\(operations[symbol]!(12, 4))\") }\n\n// @escaping closures run later: here, saved up and run at the end.\nvar later: [() -> Void] = []\nfunc schedule(_ work: @escaping () -> Void) { later.append(work) }\nfor word in [\"ready\", \"set\", \"go\"] { schedule { print(word, terminator: \" \") } }\nlater.forEach { $0() }\nprint(\"\")\n"
+  }
+ },
+ {
+  "id": "swift/error-handling",
+  "name": "Handling Errors",
+  "category": "Learn Swift",
+  "icon": "exclamationmark.shield.fill",
+  "summary": "throw, try, catch, your own error types, and Result.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nenum AgeError: Error, CustomStringConvertible {\n    case notANumber(String)\n    case outOfRange(Int)\n\n    var description: String {\n        switch self {\n        case .notANumber(let text): return \"\\\"\\(text)\\\" isn't a whole number\"\n        case .outOfRange(let age): return \"\\(age) isn't a realistic age\"\n        }\n    }\n}\n\n// A function that can fail is marked throws.\nfunc parseAge(_ text: String) throws -> Int {\n    guard let age = Int(text) else { throw AgeError.notANumber(text) }\n    guard (0...130).contains(age) else { throw AgeError.outOfRange(age) }\n    return age\n}\n\n// do / try / catch.\nfor text in [\"42\", \"abc\", \"-5\", \"999\"] {\n    do {\n        print(\"\\\"\\(text)\\\" → age \\(try parseAge(text))\")\n    } catch let error as AgeError {\n        print(\"\\\"\\(text)\\\" → rejected: \\(error)\")\n    } catch {\n        print(\"unexpected: \\(error)\")\n    }\n}\n\n// try? turns a failure into nil; ?? supplies a default.\nprint(\"try?: \\(String(describing: try? parseAge(\"x\"))), with default: \\((try? parseAge(\"x\")) ?? 18)\")\n\n// defer runs when the scope ends, however it ends. Good for cleaning up.\nfunc process(_ text: String) -> String {\n    print(\"  open\")\n    defer { print(\"  close (always runs)\") }\n    guard let age = try? parseAge(text) else { return \"gave up\" }\n    return \"processed \\(age)\"\n}\nprint(process(\"30\"))\nprint(process(\"oops\"))\n\n// Result stores success or failure as a value you can pass around.\nfunc divide(_ a: Double, by b: Double) -> Result<Double, AgeError> {\n    b == 0 ? .failure(.notANumber(\"divide by zero\")) : .success(a / b)\n}\nfor (a, b) in [(10.0, 4.0), (1.0, 0.0)] {\n    switch divide(a, by: b) {\n    case .success(let value): print(\"\\(a) / \\(b) = \\(value)\")\n    case .failure(let error): print(\"\\(a) / \\(b) failed: \\(error)\")\n    }\n}\n\n// Errors travel up through throwing functions until someone catches them.\nfunc averageAge(_ texts: [String]) throws -> Double {\n    let ages = try texts.map(parseAge)\n    return Double(ages.reduce(0, +)) / Double(ages.count)\n}\nprint((try? averageAge([\"20\", \"30\", \"40\"])) ?? -1, (try? averageAge([\"20\", \"x\"])) ?? -1)\n"
+  }
+ },
+ {
+  "id": "swift/collections",
+  "name": "Arrays, Dictionaries & Sets",
+  "category": "Learn Swift",
+  "icon": "square.stack.3d.down.right.fill",
+  "summary": "The everyday tools for lists of data: map, filter, reduce, grouping and sorting.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nstruct Person {\n    let name: String\n    let age: Int\n    let city: String\n}\n\nlet people = [\n    Person(name: \"Ada\", age: 36, city: \"London\"),\n    Person(name: \"Linus\", age: 28, city: \"Helsinki\"),\n    Person(name: \"Grace\", age: 45, city: \"New York\"),\n    Person(name: \"Alan\", age: 41, city: \"London\"),\n]\n\nprint(\"map:        \\(people.map(\\.name))\")\nprint(\"filter:     \\(people.filter { $0.age > 40 }.map(\\.name))\")\nprint(\"reduce:     total age \\(people.reduce(0) { $0 + $1.age })\")\nprint(\"sorted:     \\(people.sorted { $0.age < $1.age }.map(\\.name))\")\nprint(\"first:      \\(people.first { $0.city == \"Helsinki\" }?.name ?? \"nobody\")\")\nprint(\"contains:   under 30? \\(people.contains { $0.age < 30 }), all adults? \\(people.allSatisfy { $0.age >= 18 })\")\nprint(\"max:        \\(people.max { $0.age < $1.age }?.name ?? \"\")\")\n\n// Dictionaries.\nlet ageByName = Dictionary(uniqueKeysWithValues: people.map { ($0.name, $0.age) })\nprint(\"lookup:     Ada is \\(ageByName[\"Ada\"] ?? 0), Zed is \\(ageByName[\"Zed\"] ?? 0)\")\nlet byCity = Dictionary(grouping: people, by: \\.city).mapValues { $0.map(\\.name) }\nfor city in byCity.keys.sorted() { print(\"  \\(city): \\(byCity[city]!)\") }\n\nvar wordCounts: [String: Int] = [:]\nfor word in \"the cat and the hat and the bat\".split(separator: \" \") { wordCounts[String(word), default: 0] += 1 }\nprint(\"counts:     \" + wordCounts.sorted { $0.value > $1.value }.map { \"\\($0.key)=\\($0.value)\" }.joined(separator: \" \"))\n\n// Sets: no duplicates, fast lookups.\nlet a: Set = [1, 2, 3, 4], b: Set = [3, 4, 5]\nprint(\"sets:       union \\(a.union(b).sorted()), both \\(a.intersection(b).sorted()), only a \\(a.subtracting(b).sorted())\")\nprint(\"unique:     \\(Array(Set(people.map(\\.city))).sorted())\")\n\n// Handy extras.\nlet numbers = Array(1...10)\nprint(\"slices:     \\(numbers.prefix(3)) \\(numbers.suffix(2)) \\(numbers[2...4])\")\nprint(\"zip:        \\(Array(zip(people.map(\\.name), numbers)).prefix(2))\")\nprint(\"enumerated: \" + people.enumerated().map { \"\\($0.offset + 1).\\($0.element.name)\" }.joined(separator: \" \"))\nprint(\"chunks:     \\(stride(from: 0, to: numbers.count, by: 4).map { Array(numbers[$0..<min($0 + 4, numbers.count)]) })\")\nprint(\"flatMap:    \\([[1, 2], [3], [4, 5]].flatMap { $0 })\")\nprint(\"lazy:       first even square over 50 is \\(numbers.lazy.map { $0 * $0 }.first { $0 > 50 && $0 % 2 == 0 } ?? 0)\")\n"
+  }
+ },
+ {
+  "id": "swift/codable-json",
+  "name": "JSON with Codable",
+  "category": "Learn Swift",
+  "icon": "curlybraces.square.fill",
+  "summary": "Turn JSON text into Swift types and back with almost no code.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nlet json = \"\"\"\n{\n  \"app\": \"MangoIDE\",\n  \"version\": 1.5,\n  \"users\": [\n    {\"name\": \"Ada\", \"is_active\": true, \"tags\": [\"admin\", \"dev\"], \"joined\": 2019},\n    {\"name\": \"Linus\", \"is_active\": false, \"tags\": [\"dev\"]},\n    {\"name\": \"Grace\", \"is_active\": true, \"tags\": []}\n  ]\n}\n\"\"\"\n\n// Matching the JSON's shape is all it takes.\nstruct User: Codable {\n    let name: String\n    let isActive: Bool\n    let tags: [String]\n    let joined: Int?            // optional: may be missing\n\n    // Map the JSON's names to Swift-style names.\n    enum CodingKeys: String, CodingKey {\n        case name, tags, joined\n        case isActive = \"is_active\"\n    }\n}\n\nstruct AppInfo: Codable {\n    let app: String\n    let version: Double\n    var users: [User]\n}\n\ndo {\n    var info = try JSONDecoder().decode(AppInfo.self, from: Data(json.utf8))\n    print(\"\\(info.app) v\\(info.version) has \\(info.users.count) users\")\n    for user in info.users {\n        let joined = user.joined.map { \"joined \\($0)\" } ?? \"join year unknown\"\n        print(\"  \\(user.isActive ? \"🟢\" : \"⚪️\") \\(user.name): \\(user.tags.isEmpty ? \"no tags\" : user.tags.joined(separator: \", \")), \\(joined)\")\n    }\n\n    // Change it and turn it back into JSON.\n    info.users.append(User(name: \"Alan\", isActive: true, tags: [\"logic\"], joined: 2024))\n    let encoder = JSONEncoder()\n    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]\n    let output = try encoder.encode(info.users.filter(\\.isActive))\n    print(\"\\nActive users as JSON:\\n\" + String(decoding: output, as: UTF8.self))\n} catch {\n    print(\"Couldn't read the JSON: \\(error)\")\n}\n\n// Bad JSON gives a clear error instead of a crash.\ndo {\n    _ = try JSONDecoder().decode(AppInfo.self, from: Data(\"{\\\"app\\\": 42}\".utf8))\n} catch DecodingError.typeMismatch(_, let context) {\n    print(\"\\nWrong type at \\(context.codingPath.map(\\.stringValue).joined(separator: \".\")): \\(context.debugDescription)\")\n} catch {\n    print(\"\\nOther error: \\(error)\")\n}\n"
+  }
+ },
+ {
+  "id": "swift/async-await",
+  "name": "async / await",
+  "category": "Learn Swift",
+  "icon": "bolt.horizontal.fill",
+  "summary": "Run slow jobs one after another or side by side with Swift concurrency.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nstruct DownloadError: Error {\n    let name: String\n}\n\nfunc download(_ name: String, seconds: Double, fails: Bool = false) async throws -> String {\n    try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))\n    if fails { throw DownloadError(name: name) }\n    return \"\\(name).zip\"\n}\n\nfunc elapsed(since start: Date) -> String { String(format: \"%.1fs\", Date().timeIntervalSince(start)) }\n\n// One after another: the waits add up.\nvar start = Date()\nlet first = try await download(\"photos\", seconds: 0.3)\nlet second = try await download(\"music\", seconds: 0.2)\nprint(\"One by one:  \\(first), \\(second) in \\(elapsed(since: start))\")\n\n// async let starts them together: done when the slowest finishes.\nstart = Date()\nasync let photos = download(\"photos\", seconds: 0.3)\nasync let music = download(\"music\", seconds: 0.2)\nasync let docs = download(\"docs\", seconds: 0.1)\nlet all = try await [photos, music, docs]\nprint(\"All at once: \\(all) in \\(elapsed(since: start))\")\n\n// A task group handles any number of jobs.\nstart = Date()\nlet files = try await withThrowingTaskGroup(of: String.self) { group -> [String] in\n    for i in 1...5 {\n        group.addTask { try await download(\"file\\(i)\", seconds: 0.05 * Double(i)) }\n    }\n    var finished: [String] = []\n    for try await file in group { finished.append(file) }\n    return finished\n}\nprint(\"Task group:  \\(files.count) files in \\(elapsed(since: start)), in the order they finished: \\(files)\")\n\n// Errors work like normal throwing code.\ndo {\n    _ = try await download(\"broken\", seconds: 0.1, fails: true)\n} catch let error as DownloadError {\n    print(\"Caught:      \\(error.name) failed to download\")\n}\n\n// An actor keeps shared data safe when many tasks touch it at once.\nactor Counter {\n    private(set) var value = 0\n    func increment() { value += 1 }\n}\nlet counter = Counter()\nawait withTaskGroup(of: Void.self) { group in\n    for _ in 0..<1000 { group.addTask { await counter.increment() } }\n}\nprint(\"Actor:       1,000 tasks counted to \\(await counter.value) with no lost updates\")\n"
+  }
+ },
+ {
+  "id": "swift/property-wrappers",
+  "name": "Property Wrappers",
+  "category": "Learn Swift",
+  "icon": "shippingbox.fill",
+  "summary": "Reusable rules for properties: clamp a number, trim text, log every change.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\n// A property wrapper holds the value and decides what happens when it's read or set.\n@propertyWrapper\nstruct Clamped {\n    private var value: Int\n    let range: ClosedRange<Int>\n\n    init(wrappedValue: Int, _ range: ClosedRange<Int>) {\n        self.range = range\n        self.value = min(max(wrappedValue, range.lowerBound), range.upperBound)\n    }\n\n    var wrappedValue: Int {\n        get { value }\n        set { value = min(max(newValue, range.lowerBound), range.upperBound) }\n    }\n}\n\n@propertyWrapper\nstruct Trimmed {\n    private var value = \"\"\n    init(wrappedValue: String) { self.wrappedValue = wrappedValue }\n    var wrappedValue: String {\n        get { value }\n        set { value = newValue.trimmingCharacters(in: .whitespacesAndNewlines) }\n    }\n}\n\n/// Remembers every value it was given. $name gives access to the history.\n@propertyWrapper\nstruct Tracked<Value> {\n    private(set) var history: [Value]\n    init(wrappedValue: Value) { history = [wrappedValue] }\n    var wrappedValue: Value {\n        get { history[history.count - 1] }\n        set { history.append(newValue) }\n    }\n    var projectedValue: [Value] { history }\n}\n\nstruct Player {\n    @Trimmed var name: String = \"\"\n    @Clamped(0...100) var health: Int = 100\n    @Clamped(1...99) var level: Int = 1\n    @Tracked var score: Int = 0\n}\n\nvar player = Player(name: \"   Mango  \")\nprint(\"name is trimmed: \\\"\\(player.name)\\\"\")\n\nplayer.health -= 250\nprint(\"health can't go below 0: \\(player.health)\")\nplayer.health += 9999\nprint(\"or above 100: \\(player.health)\")\nplayer.level = 0\nprint(\"level stays at least 1: \\(player.level)\")\n\nfor points in [10, 25, 5] { player.score += points }\nprint(\"score: \\(player.score), history: \\(player.$score)\")\n\n// The same thing by hand, to show what the wrapper saves you from writing.\nstruct PlainPlayer {\n    private var storedHealth = 100\n    var health: Int {\n        get { storedHealth }\n        set { storedHealth = min(max(newValue, 0), 100) }\n    }\n}\nvar plain = PlainPlayer()\nplain.health = -5\nprint(\"without a wrapper you repeat this for every property: \\(plain.health)\")\n"
+  }
+ },
+ {
+  "id": "swift/strings",
+  "name": "Working with Strings",
+  "category": "Learn Swift",
+  "icon": "textformat.abc",
+  "summary": "Search, split, format and pull text apart, including emoji-safe indexing.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "import Foundation\n\nlet text = \"  The quick brown fox jumps over the lazy dog  \"\nlet clean = text.trimmingCharacters(in: .whitespaces)\n\nprint(\"count:       \\(clean.count) characters, \\(clean.split(separator: \" \").count) words\")\nprint(\"upper/lower: \\(clean.uppercased().prefix(9)) / \\(clean.lowercased().prefix(9))\")\nprint(\"contains:    fox? \\(clean.contains(\"fox\")), starts with The? \\(clean.hasPrefix(\"The\")), ends with dog? \\(clean.hasSuffix(\"dog\"))\")\nprint(\"replace:     \\(clean.replacingOccurrences(of: \"lazy\", with: \"sleepy\"))\")\nprint(\"split/join:  \\(clean.split(separator: \" \").map { $0.capitalized }.joined(separator: \"-\"))\")\nprint(\"reversed:    \\(String(clean.reversed()))\")\n\n// Characters can be several bytes, so Swift uses indexes instead of numbers.\nlet word = \"Mango 🥭 café\"\nprint(\"\\ncharacters:  \\(word.count), bytes in UTF-8: \\(word.utf8.count)\")\nprint(\"first/last:  \\(word.first!) \\(word.last!)\")\nlet start = word.index(word.startIndex, offsetBy: 6)\nprint(\"7th char:    \\(word[start])\")\nprint(\"first five:  \\(word.prefix(5)), last four: \\(word.suffix(4))\")\nif let space = word.firstIndex(of: \" \") { print(\"up to space: \\(word[..<space])\") }\nprint(\"as an array: \\(Array(word.prefix(5)))\")\n\n// Building and formatting.\nlet name = \"Ada\", score = 97.456\nprint(\"\\ninterpolate: \\(name) scored \\(score.rounded()) (\\(score > 90 ? \"great\" : \"ok\"))\")\nprint(\"format:      \" + String(format: \"%.1f%%  |%5d|  |%-8.2f|  %03d\", score, 42, 3.14159, 7))\nprint(\"padding:     [\" + name.padding(toLength: 8, withPad: \".\", startingAt: 0) + \"]\")\nprint(\"repeat:      \" + String(repeating: \"=-\", count: 10))\nprint(\"multi-line:\")\nprint(\"\"\"\n    Dear \\(name),\n      your score was \\(Int(score)).\n    \"\"\")\n\n// Checking and converting.\nprint(\"numbers:     Int(\\\"42\\\") = \\(Int(\"42\") ?? 0), Double(\\\"3.5\\\") = \\(Double(\"3.5\") ?? 0), Int(\\\"x\\\") = \\(String(describing: Int(\"x\")))\")\nprint(\"letters only? \\(\"Swift\".allSatisfy { $0.isLetter }), digits only? \\(\"2024\".allSatisfy { $0.isNumber })\")\nlet vowels = clean.lowercased().filter { \"aeiou\".contains($0) }.count\nprint(\"vowels:      \\(vowels)\")\nprint(\"compare:     \\(\"apple\" < \"banana\"), same ignoring case? \\(\"SWIFT\".caseInsensitiveCompare(\"swift\") == .orderedSame)\")\nprint(\"palindrome:  \\([\"level\", \"swift\"].map { \"\\($0)=\\($0 == String($0.reversed()))\" })\")\n"
+  }
+ },
+ {
+  "id": "swift/unit-tests",
+  "name": "Tiny Test Runner",
+  "category": "Learn Swift",
+  "icon": "checkmark.seal.fill",
+  "summary": "Test your own functions with a small runner you can read in one screen.",
+  "language": "swift",
+  "entry": "main.swift",
+  "files": {
+   "main.swift": "// Real apps use XCTest in Xcode. This shows the same idea in a single file.\nimport Foundation\n\n// The code being tested.\nfunc total(_ prices: [Double], tax: Double = 0.08) -> Double {\n    (prices.reduce(0, +) * (1 + tax) * 100).rounded() / 100\n}\n\nenum DiscountError: Error { case badPercent }\n\nfunc discount(_ price: Double, percent: Double) throws -> Double {\n    guard (0...100).contains(percent) else { throw DiscountError.badPercent }\n    return (price * (1 - percent / 100) * 100).rounded() / 100\n}\n\nfunc slug(_ title: String) -> String {\n    title.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: \"-\")\n}\n\n// The runner.\nvar passed = 0, failed = 0\n\nfunc expect<T: Equatable>(_ actual: T, equals expected: T, _ name: String) {\n    if actual == expected {\n        passed += 1\n        print(\"✅ \\(name)\")\n    } else {\n        failed += 1\n        print(\"❌ \\(name): expected \\(expected), got \\(actual)\")\n    }\n}\n\nfunc expectThrows(_ name: String, _ body: () throws -> Void) {\n    do {\n        try body()\n        failed += 1\n        print(\"❌ \\(name): expected an error, but nothing was thrown\")\n    } catch {\n        passed += 1\n        print(\"✅ \\(name)\")\n    }\n}\n\n// The tests. Break one of the functions above and run again to see a failure.\nexpect(total([10, 20]), equals: 32.4, \"total adds tax\")\nexpect(total([]), equals: 0, \"total of nothing is zero\")\nexpect(total([10], tax: 0), equals: 10, \"tax can be turned off\")\nexpect(try! discount(80, percent: 25), equals: 60, \"discount takes a quarter off\")\nexpectThrows(\"discount rejects 150%\") { _ = try discount(80, percent: 150) }\nexpect(slug(\"Hello, Big World!\"), equals: \"hello-big-world\", \"slug replaces punctuation\")\nexpect(slug(\"  Swift 6  \"), equals: \"swift-6\", \"slug trims the ends\")\n\nprint(\"\\n\\(passed) passed, \\(failed) failed\")\nprint(failed == 0 ? \"All good ✅\" : \"Some tests failed ❌\")\n"
+  }
+ }
+]

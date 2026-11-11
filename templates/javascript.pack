@@ -1,0 +1,1551 @@
+=== hello-you | Hello, You | Starter | hand.wave.fill | Read a name and greet it. Shows how input works on the phone.
+--- main.js
+// JavaScript runs right on your phone. prompt() reads the next line from
+// Run Settings › Input (the sliders icon in the console). With no input, a default is used.
+const ask = (question, fallback) => {
+  const answer = prompt(question);
+  return answer === null || answer.trim() === "" ? fallback : answer.trim();
+};
+
+const name = ask("What's your name?", "friend");
+console.log(`Hello, ${name}! Welcome to JavaScript.`);
+console.log(`Your name has ${name.length} letters and backwards it's ${[...name].reverse().join("")}.`);
+
+=== calculator | Calculator | Starter | plusminus.circle.fill | A real expression parser: handles + - * / ^ and brackets in the right order.
+--- main.js
+// Evaluates sums like 3 * (4 + 5) without eval(), using a small recursive parser.
+// Put your own sums in Run Settings › Input, one per line.
+function calculate(text) {
+  const tokens = text.match(/\d+\.?\d*|[-+*/^()]/g) || [];
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+
+  function factor() {
+    const t = next();
+    if (t === "(") {
+      const v = expression();
+      if (next() !== ")") throw new Error("Missing a closing bracket");
+      return v;
+    }
+    if (t === "-") return -factor();
+    if (t === undefined || isNaN(t)) throw new Error("I didn't understand that sum");
+    return parseFloat(t);
+  }
+  function power() {
+    const base = factor();
+    return peek() === "^" ? (next(), Math.pow(base, power())) : base;
+  }
+  function term() {
+    let v = power();
+    while (peek() === "*" || peek() === "/") v = next() === "*" ? v * power() : v / power();
+    return v;
+  }
+  function expression() {
+    let v = term();
+    while (peek() === "+" || peek() === "-") v = next() === "+" ? v + term() : v - term();
+    return v;
+  }
+  const result = expression();
+  if (pos < tokens.length) throw new Error("Unexpected " + peek());
+  return result;
+}
+
+const sums = [];
+for (let line = prompt("Sum"); line !== null && line.trim() !== ""; line = prompt("Sum")) sums.push(line);
+for (const sum of sums.length ? sums : ["3 * (4 + 5)", "2 ^ 10 - 24", "10 / 4 + -1", "(1 + 2"]) {
+  try { console.log(`${sum} = ${calculate(sum)}`); }
+  catch (e) { console.log(`${sum} → ${e.message}`); }
+}
+
+=== temperature | Temperature Converter | Starter | thermometer.medium | Convert between Celsius, Fahrenheit and Kelvin, with a handy table.
+--- main.js
+// Convert temperatures. Add lines like 72f or 21c in Run Settings › Input.
+const toCelsius = { c: (v) => v, f: (v) => (v - 32) * 5 / 9, k: (v) => v - 273.15 };
+const fromCelsius = (c) => ({ C: c, F: c * 9 / 5 + 32, K: c + 273.15 });
+
+function convert(text) {
+  const unit = text.slice(-1).toLowerCase();
+  const value = parseFloat(text);
+  if (!(unit in toCelsius) || isNaN(value)) return `${text}: use a number followed by c, f or k`;
+  const all = fromCelsius(toCelsius[unit](value));
+  return Object.entries(all).map(([u, v]) => `${v.toFixed(1)}°${u}`).join("  ");
+}
+
+const inputs = [];
+for (let line = prompt("Temperature"); line !== null && line.trim() !== ""; line = prompt("Temperature")) inputs.push(line.trim());
+for (const text of inputs.length ? inputs : ["72f", "21c", "300k"]) console.log(convert(text));
+
+console.log("\n  °C     °F");
+for (let c = -10; c <= 40; c += 10) console.log(`${String(c).padStart(4)}  ${String(c * 9 / 5 + 32).padStart(5)}`);
+
+=== tip-splitter | Tip & Bill Splitter | Starter | dollarsign.circle.fill | Work out the tip and what each person owes.
+--- main.js
+// Input (Run Settings › Input): bill, tip %, number of people. One per line.
+const number = (question, fallback) => {
+  const value = parseFloat(prompt(question));
+  return isNaN(value) ? fallback : value;
+};
+const money = (n) => "$" + n.toFixed(2);
+
+const bill = number("Bill total", 50);
+const tipPercent = number("Tip %", 18);
+const people = Math.max(1, Math.round(number("How many people", 2)));
+const tip = bill * tipPercent / 100;
+const total = bill + tip;
+
+console.log(`Bill:       ${money(bill)}`);
+console.log(`Tip (${tipPercent}%):  ${money(tip)}`);
+console.log(`Total:      ${money(total)}`);
+console.log(`Per person: ${money(total / people)} (${people} people)`);
+
+console.log("\nOther tips:");
+for (const p of [10, 15, 20, 25]) console.log(`  ${p}% → ${money(bill * (1 + p / 100) / people)} each`);
+
+=== fizzbuzz | FizzBuzz Three Ways | Starter | number.circle.fill | The famous beginner puzzle solved with a loop, a lookup and one line.
+--- main.js
+// Print 1 to 20, but "Fizz" for multiples of 3, "Buzz" for 5 and "FizzBuzz" for both.
+
+// 1. The classic loop.
+const classic = [];
+for (let i = 1; i <= 20; i++) {
+  if (i % 15 === 0) classic.push("FizzBuzz");
+  else if (i % 3 === 0) classic.push("Fizz");
+  else if (i % 5 === 0) classic.push("Buzz");
+  else classic.push(i);
+}
+console.log(classic.join(" "));
+
+// 2. Rules in a table, so adding "7 → Bazz" is one line.
+const rules = [[3, "Fizz"], [5, "Buzz"]];
+const withRules = (n) => rules.filter(([d]) => n % d === 0).map(([, word]) => word).join("") || n;
+console.log(Array.from({ length: 20 }, (_, i) => withRules(i + 1)).join(" "));
+
+// 3. One line.
+console.log([...Array(20)].map((_, i) => (++i % 3 ? "" : "Fizz") + (i % 5 ? "" : "Buzz") || i).join(" "));
+
+=== guess-number | Guess the Number | Games | questionmark.circle.fill | Feed in guesses, or watch the computer find the number by halving.
+--- main.js
+// Type guesses in Run Settings › Input (one per line) to play.
+// With no input, the computer plays itself using binary search.
+const secret = Math.floor(Math.random() * 100) + 1;
+const guesses = [];
+for (let line = prompt("Guess"); line !== null && line.trim() !== ""; line = prompt("Guess")) guesses.push(parseInt(line, 10));
+
+function hint(guess) {
+  return guess < secret ? "Higher ⬆️" : guess > secret ? "Lower ⬇️" : "Got it! 🎉";
+}
+
+if (guesses.length) {
+  let won = false;
+  guesses.forEach((g, i) => {
+    if (won || isNaN(g)) return;
+    console.log(`Guess ${i + 1}: ${g} → ${hint(g)}`);
+    won = g === secret;
+  });
+  if (!won) console.log(`Out of guesses. It was ${secret}. Add more lines and run again.`);
+} else {
+  let low = 1, high = 100, tries = 0;
+  while (true) {
+    const g = Math.floor((low + high) / 2);
+    tries++;
+    console.log(`Computer guesses ${g} → ${hint(g)}`);
+    if (g === secret) break;
+    if (g < secret) low = g + 1; else high = g - 1;
+  }
+  console.log(`Found in ${tries} tries. Halving never needs more than 7.`);
+}
+
+=== rock-paper-scissors | Rock Paper Scissors | Games | scissors | Play your moves from input, or run a 1,000-round tournament of strategies.
+--- main.js
+// Put r, p or s on separate lines in Run Settings › Input to play against the computer.
+const MOVES = ["rock", "paper", "scissors"];
+const BEATS = { rock: "scissors", paper: "rock", scissors: "paper" };
+const random = () => MOVES[Math.floor(Math.random() * 3)];
+const winner = (a, b) => (a === b ? 0 : BEATS[a] === b ? 1 : -1);
+
+const mine = [];
+for (let line = prompt("Move"); line !== null && line.trim() !== ""; line = prompt("Move")) {
+  const move = MOVES.find((m) => m[0] === line.trim().toLowerCase()[0]);
+  if (move) mine.push(move);
+}
+
+if (mine.length) {
+  let score = 0;
+  for (const move of mine) {
+    const cpu = random();
+    const result = winner(move, cpu);
+    score += result;
+    console.log(`You: ${move.padEnd(8)} Computer: ${cpu.padEnd(8)} → ${["You lose", "Draw", "You win"][result + 1]}`);
+  }
+  console.log(score > 0 ? "🏆 You won overall!" : score < 0 ? "Computer wins overall." : "All square.");
+} else {
+  // Strategies: each gets the opponent's previous move.
+  const strategies = {
+    random: () => random(),
+    alwaysRock: () => "rock",
+    copycat: (last) => last || random(),
+    counter: (last) => (last ? MOVES.find((m) => BEATS[m] === last) : random()),
+  };
+  const names = Object.keys(strategies);
+  const wins = Object.fromEntries(names.map((n) => [n, 0]));
+  for (const a of names) for (const b of names) {
+    if (a >= b) continue;
+    let lastA, lastB;
+    for (let i = 0; i < 1000; i++) {
+      const ma = strategies[a](lastB), mb = strategies[b](lastA);
+      const r = winner(ma, mb);
+      if (r > 0) wins[a]++; else if (r < 0) wins[b]++;
+      lastA = ma; lastB = mb;
+    }
+  }
+  console.log("Wins after every strategy played every other 1,000 times:");
+  for (const [name, w] of Object.entries(wins).sort((x, y) => y[1] - x[1])) console.log(`  ${name.padEnd(11)} ${w}`);
+}
+
+=== hangman | Hangman | Games | figure.stand | Guess letters from input, or watch a smart solver pick the most likely ones.
+--- main.js
+// Put one letter per line in Run Settings › Input to play. With none, a solver plays.
+const WORDS = ["python", "mango", "keyboard", "function", "variable", "galaxy", "puzzle", "rhythm", "island", "rocket"];
+const word = WORDS[Math.floor(Math.random() * WORDS.length)];
+const show = (guessed) => [...word].map((c) => (guessed.has(c) ? c : "_")).join(" ");
+
+const letters = [];
+for (let line = prompt("Letter"); line !== null && line.trim() !== ""; line = prompt("Letter")) letters.push(line.trim()[0].toLowerCase());
+
+function solverPick(guessed) {
+  // Words that still fit the pattern, then the commonest unguessed letter among them.
+  const fits = WORDS.filter((w) => w.length === word.length &&
+    [...w].every((c, i) => (guessed.has(word[i]) ? c === word[i] : !guessed.has(c))));
+  const counts = {};
+  for (const w of fits) for (const c of new Set(w)) if (!guessed.has(c)) counts[c] = (counts[c] || 0) + 1;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+const human = letters.length > 0;
+const guessed = new Set();
+let lives = 6;
+while (lives > 0 && [...word].some((c) => !guessed.has(c))) {
+  if (human && letters.length === 0) break;
+  const letter = human ? letters.shift() : solverPick(guessed);
+  if (guessed.has(letter)) continue;
+  guessed.add(letter);
+  const hit = word.includes(letter);
+  if (!hit) lives--;
+  console.log(`${letter} → ${hit ? "yes" : "no "}  ${show(guessed)}  ${"♥".repeat(lives)}`);
+}
+
+const solved = [...word].every((c) => guessed.has(c));
+console.log(solved ? `Solved: ${word}! 🎉` : lives ? `Ran out of letters. Add more lines and run again.` : `Out of lives. The word was ${word}.`);
+
+=== tic-tac-toe | Tic-Tac-Toe AI | Games | number.square.fill | An unbeatable computer player (minimax). Play it, or watch it play itself.
+--- main.js
+// Squares are numbered 1-9. Put your moves in Run Settings › Input to play X against the AI.
+const LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+
+function winner(b) {
+  for (const [x, y, z] of LINES) if (b[x] !== " " && b[x] === b[y] && b[y] === b[z]) return b[x];
+  return b.includes(" ") ? null : "draw";
+}
+
+function minimax(b, player) {
+  const w = winner(b);
+  if (w) return { score: w === "O" ? 1 : w === "X" ? -1 : 0 };
+  let best = { score: player === "O" ? -2 : 2 };
+  for (let i = 0; i < 9; i++) {
+    if (b[i] !== " ") continue;
+    b[i] = player;
+    const { score } = minimax(b, player === "O" ? "X" : "O");
+    b[i] = " ";
+    if (player === "O" ? score > best.score : score < best.score) best = { score, move: i };
+  }
+  return best;
+}
+
+const draw = (b) => console.log([0, 3, 6].map((r) => b.slice(r, r + 3).map((c, i) => (c === " " ? r + i + 1 : c)).join(" | ")).join("\n---------\n") + "\n");
+
+const moves = [];
+for (let line = prompt("Move"); line !== null && line.trim() !== ""; line = prompt("Move")) moves.push(parseInt(line, 10) - 1);
+const human = moves.length > 0;
+const board = Array(9).fill(" ");
+let player = "X";
+while (!winner(board)) {
+  let move;
+  if (player === "X" && human) {
+    move = moves.find((m) => board[m] === " ");
+    if (move === undefined) { console.log("Add more moves in Run Settings › Input to finish the game."); break; }
+    moves.splice(moves.indexOf(move), 1);
+  } else if (player === "X" && board.every((c) => c === " ")) {
+    move = Math.floor(Math.random() * 9);   // a random opening keeps self-play interesting
+  } else {
+    move = minimax(board, player).move;
+  }
+  board[move] = player;
+  player = player === "X" ? "O" : "X";
+}
+draw(board);
+const result = winner(board);
+console.log(result === "draw" ? "It's a draw: perfect play always ends this way." : result ? `${result} wins!` : "Game paused.");
+
+=== dice-roller | Dice Roller | Games | dice.fill | Roll tabletop dice like 2d6 or d20+5, and see how the odds really fall.
+--- main.js
+// Add rolls like 2d6 or d20+5 in Run Settings › Input.
+function roll(text) {
+  const m = /^(\d*)d(\d+)([+-]\d+)?$/.exec(text.replace(/\s/g, "").toLowerCase());
+  if (!m) throw new Error(`"${text}" isn't dice. Write it like 2d6 or d20+5.`);
+  const count = parseInt(m[1] || "1", 10), sides = parseInt(m[2], 10), bonus = parseInt(m[3] || "0", 10);
+  const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1);
+  return { rolls, total: rolls.reduce((a, b) => a + b, 0) + bonus };
+}
+
+const requests = [];
+for (let line = prompt("Roll"); line !== null && line.trim() !== ""; line = prompt("Roll")) requests.push(line);
+for (const text of requests.length ? requests : ["2d6", "d20+5", "4d8-1"]) {
+  try {
+    const { rolls, total } = roll(text);
+    console.log(`${text.padEnd(6)} [${rolls.join(", ")}] = ${total}`);
+  } catch (e) { console.log(e.message); }
+}
+
+console.log("\n10,000 rolls of 2d6:");
+const counts = {};
+for (let i = 0; i < 10000; i++) { const t = roll("2d6").total; counts[t] = (counts[t] || 0) + 1; }
+for (let t = 2; t <= 12; t++) console.log(`${String(t).padStart(2)} ${"█".repeat(Math.round(counts[t] / 60))} ${(counts[t] / 100).toFixed(1)}%`);
+
+=== blackjack | Blackjack Simulator | Games | suit.spade.fill | Deal thousands of hands to find out which "stand on" number wins most.
+--- main.js
+// Plays blackjack against the dealer with a simple rule: hit until you reach a target.
+const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+function newDeck() {
+  const deck = RANKS.flatMap((r) => ["♠", "♥", "♦", "♣"].map((s) => r + s));
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function value(hand) {
+  let total = 0, aces = 0;
+  for (const card of hand) {
+    const r = card.slice(0, -1);
+    if (r === "A") { total += 11; aces++; } else total += "JQK".includes(r) ? 10 : parseInt(r, 10);
+  }
+  while (total > 21 && aces--) total -= 10;
+  return total;
+}
+
+function play(standOn, log = false) {
+  const deck = newDeck();
+  const player = [deck.pop(), deck.pop()], dealer = [deck.pop(), deck.pop()];
+  while (value(player) < standOn) player.push(deck.pop());
+  while (value(dealer) < 17 && value(player) <= 21) dealer.push(deck.pop());
+  const p = value(player), d = value(dealer);
+  const result = p > 21 ? "lose" : d > 21 || p > d ? "win" : p === d ? "push" : "lose";
+  if (log) console.log(`You ${player.join(" ")} (${p})  Dealer ${dealer.join(" ")} (${d})  → ${result}`);
+  return result;
+}
+
+console.log("Three sample hands, standing on 17:");
+for (let i = 0; i < 3; i++) play(17, true);
+
+console.log("\nWin rate over 5,000 hands for each stand-on number:");
+for (let target = 12; target <= 20; target++) {
+  let wins = 0;
+  for (let i = 0; i < 5000; i++) if (play(target) === "win") wins++;
+  console.log(`  stand on ${target}: ${(wins / 50).toFixed(1)}% ${"█".repeat(Math.round(wins / 125))}`);
+}
+
+=== text-adventure | Text Adventure | Games | map.fill | A room-by-room adventure driven by commands. The whole map is one object.
+--- main.js
+// Commands go in Run Settings › Input, one per line: north, south, east, west, take, bag.
+// With no input, a winning walkthrough plays.
+const ROOMS = {
+  hall: { text: "A dusty hall. Doors lead north and east.", north: "library", east: "kitchen" },
+  library: { text: "Shelves of old books. A brass key glints on a desk.", south: "hall", item: "key" },
+  kitchen: { text: "A cold kitchen. A locked door leads north.", west: "hall", north: "garden", locked: "north" },
+  garden: { text: "Sunlight! You made it outside. 🌳", end: true },
+};
+
+const commands = [];
+for (let line = prompt(">"); line !== null && line.trim() !== ""; line = prompt(">")) commands.push(line.trim().toLowerCase());
+const script = commands.length ? commands : ["east", "north", "west", "north", "take", "bag", "south", "east", "north"];
+
+let room = "hall";
+const bag = new Set();
+console.log(ROOMS[room].text);
+for (const cmd of script) {
+  const here = ROOMS[room];
+  if (here.end) break;
+  console.log(`\n> ${cmd}`);
+  if (cmd === "bag") console.log("You carry: " + ([...bag].join(", ") || "nothing"));
+  else if (cmd === "take") {
+    if (here.item) { bag.add(here.item); delete here.item; console.log("Taken."); } else console.log("Nothing to take here.");
+  } else if (["north", "south", "east", "west"].includes(cmd) && here[cmd]) {
+    if (here.locked === cmd && !bag.has("key")) console.log("The door is locked.");
+    else { room = here[cmd]; console.log(ROOMS[room].text); }
+  } else console.log("You can't do that here.");
+}
+if (!ROOMS[room].end) console.log("\n(Out of commands. Add more in Run Settings › Input.)");
+
+=== wordle-solver | Word Guess Solver | Games | square.grid.3x3.fill | Scores Wordle-style guesses and narrows the word list after each one.
+--- main.js
+// 🟩 right spot, 🟨 wrong spot, ⬛ not in the word. Put your guesses in Run Settings › Input,
+// or let the solver play: it keeps only the words that match every clue so far.
+const WORDS = ["apple", "brick", "crane", "drive", "eagle", "flame", "grape", "house", "juice", "knife",
+  "lemon", "mango", "night", "ocean", "piano", "queen", "river", "stone", "tiger", "water"];
+
+function score(guess, answer) {
+  const marks = Array(5).fill("⬛"), left = [...answer];
+  [...guess].forEach((c, i) => { if (c === answer[i]) { marks[i] = "🟩"; left[left.indexOf(c)] = null; } });
+  [...guess].forEach((c, i) => {
+    if (marks[i] === "⬛" && left.includes(c)) { marks[i] = "🟨"; left[left.indexOf(c)] = null; }
+  });
+  return marks.join("");
+}
+
+const answer = WORDS[Math.floor(Math.random() * WORDS.length)];
+const typed = [];
+for (let line = prompt("Guess"); line !== null && line.trim() !== ""; line = prompt("Guess")) typed.push(line.trim().toLowerCase());
+
+let candidates = WORDS.slice(), solved = false;
+for (let turn = 1; turn <= 6 && !solved; turn++) {
+  const guess = typed.length ? typed.shift() : candidates[0];
+  if (!guess || guess.length !== 5) { console.log("Guesses need five letters."); break; }
+  const marks = score(guess, answer);
+  candidates = candidates.filter((w) => score(guess, w) === marks);
+  solved = guess === answer;
+  console.log(`${turn}. ${marks} ${guess.toUpperCase()}   ${solved ? "🎉" : candidates.length + " words still possible"}`);
+}
+if (!solved) console.log("The word was " + answer.toUpperCase());
+
+=== game-of-life | Game of Life | Games | circle.grid.cross.fill | Conway's cell simulation: three simple rules make gliders and blinkers.
+--- main.js
+// A live cell survives with 2 or 3 neighbours; an empty cell with exactly 3 comes alive.
+const WIDTH = 24, HEIGHT = 10;
+const key = (x, y) => `${(x + WIDTH) % WIDTH},${(y + HEIGHT) % HEIGHT}`;
+let alive = new Set([[1, 0], [2, 1], [0, 2], [1, 2], [2, 2], [12, 4], [13, 4], [14, 4]].map(([x, y]) => key(x, y)));
+
+function step(cells) {
+  const counts = new Map();
+  for (const cell of cells) {
+    const [x, y] = cell.split(",").map(Number);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      if (dx || dy) { const k = key(x + dx, y + dy); counts.set(k, (counts.get(k) || 0) + 1); }
+    }
+  }
+  return new Set([...counts].filter(([k, n]) => n === 3 || (n === 2 && cells.has(k))).map(([k]) => k));
+}
+
+for (let generation = 0; generation < 6; generation++) {
+  console.log(`Generation ${generation} (${alive.size} cells)`);
+  for (let y = 0; y < HEIGHT; y++) {
+    let row = "";
+    for (let x = 0; x < WIDTH; x++) row += alive.has(key(x, y)) ? "█" : "·";
+    console.log(row);
+  }
+  console.log("");
+  alive = step(alive);
+}
+
+=== password-generator | Password Generator | Tools | key.fill | Make random passwords and passphrases, and rate how strong they are.
+--- main.js
+// Good for learning. For real passwords use a password manager: Math.random() isn't built for secrets.
+const SETS = { lower: "abcdefghijklmnopqrstuvwxyz", upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", digits: "0123456789", symbols: "!@#$%^&*-_" };
+const WORDS = ["mango", "river", "cloud", "tiger", "piano", "lemon", "rocket", "forest", "ember", "comet", "maple", "otter"];
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+function password(length = 16, useSymbols = true) {
+  const sets = [SETS.lower, SETS.upper, SETS.digits].concat(useSymbols ? [SETS.symbols] : []);
+  const all = sets.join("");
+  const chars = sets.map(pick);                       // at least one of each kind
+  while (chars.length < length) chars.push(pick(all));
+  return chars.sort(() => Math.random() - 0.5).join("");
+}
+
+const passphrase = (words = 4) => Array.from({ length: words }, () => pick(WORDS)).join("-") + (10 + Math.floor(Math.random() * 90));
+
+function strength(pw) {
+  let pool = 0;
+  if (/[a-z]/.test(pw)) pool += 26;
+  if (/[A-Z]/.test(pw)) pool += 26;
+  if (/\d/.test(pw)) pool += 10;
+  if (/[^a-zA-Z0-9]/.test(pw)) pool += 20;
+  const bits = Math.round(pw.length * Math.log2(pool || 1));
+  return `${bits} bits, ${bits < 40 ? "weak" : bits < 70 ? "okay" : "strong"}`;
+}
+
+const length = parseInt(prompt("Length"), 10) || 16;
+for (const pw of [password(length), password(length, false), passphrase(), "password123", "Tr0ub4dor&3"]) {
+  console.log(`${pw.padEnd(28)} ${strength(pw)}`);
+}
+
+=== unit-converter | Unit Converter | Tools | ruler.fill | Convert lengths, weights and volumes: 5 km to mi.
+--- main.js
+// Every unit is stored as "how many base units". Add lines like "5 km to mi" in Run Settings › Input.
+const UNITS = {
+  length: { mm: 0.001, cm: 0.01, m: 1, km: 1000, in: 0.0254, ft: 0.3048, yd: 0.9144, mi: 1609.344 },
+  weight: { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 },
+  volume: { ml: 1, l: 1000, cup: 236.588, gal: 3785.41 },
+};
+
+function convert(value, from, to) {
+  for (const table of Object.values(UNITS)) {
+    if (from in table && to in table) return value * table[from] / table[to];
+  }
+  throw new Error(`Can't convert ${from} to ${to}`);
+}
+
+const requests = [];
+for (let line = prompt("Convert"); line !== null && line.trim() !== ""; line = prompt("Convert")) requests.push(line);
+for (const text of requests.length ? requests : ["5 km to mi", "150 lb to kg", "2 cup to ml", "3 kg to km"]) {
+  const parts = text.toLowerCase().split(/\s+/);
+  try {
+    const value = parseFloat(parts[0]), from = parts[1], to = parts[parts.length - 1];
+    console.log(`${value} ${from} = ${+convert(value, from, to).toPrecision(4)} ${to}`);
+  } catch (e) { console.log(e.message); }
+}
+console.log("\nUnits: " + Object.values(UNITS).flatMap(Object.keys).join(", "));
+
+=== text-stats | Text Analyzer | Tools | text.magnifyingglass | Count words and sentences, estimate reading time, find the commonest words.
+--- main.js
+// Paste your own text into Run Settings › Input to analyze it.
+const SAMPLE = `JavaScript is the language of the web. It runs in every browser, on servers, and right here on your phone.
+It is easy to start with, and you can build real things quickly. Many people learn JavaScript first.`;
+const COMMON = new Set(["the", "a", "an", "and", "is", "it", "to", "of", "on", "in", "you", "can", "with", "here", "your"]);
+
+const lines = [];
+for (let line = prompt(""); line !== null; line = prompt("")) lines.push(line);
+const text = lines.join("\n").trim() || SAMPLE;
+
+const words = text.toLowerCase().match(/[a-z']+/g) || [];
+const sentences = text.split(/[.!?]+/).filter((s) => s.trim());
+const counts = new Map();
+for (const w of words) if (!COMMON.has(w)) counts.set(w, (counts.get(w) || 0) + 1);
+const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+console.log(`Characters:      ${text.length}`);
+console.log(`Words:           ${words.length}`);
+console.log(`Sentences:       ${sentences.length}`);
+console.log(`Avg word length: ${(words.join("").length / Math.max(1, words.length)).toFixed(1)}`);
+console.log(`Reading time:    ${Math.max(1, Math.round(words.length / 200 * 60))} seconds`);
+console.log(`Longest word:    ${words.reduce((a, b) => (b.length > a.length ? b : a), "")}`);
+console.log("Top words:       " + top.map(([w, n]) => `${w} (${n})`).join(", "));
+
+=== caesar-cipher | Secret Code (Caesar Cipher) | Tools | lock.rotation | Scramble messages by shifting letters, then crack one without the key.
+--- main.js
+// Input (optional): the message, then the shift number.
+function shift(text, key) {
+  return text.replace(/[a-z]/gi, (ch) => {
+    const base = ch <= "Z" ? 65 : 97;
+    return String.fromCharCode(((ch.charCodeAt(0) - base + key) % 26 + 26) % 26 + base);
+  });
+}
+
+// Try all 26 keys and keep the one whose result looks most like English.
+function crack(secret) {
+  const common = "etaoinshr";
+  let best = 0, bestScore = -1;
+  for (let key = 0; key < 26; key++) {
+    const plain = shift(secret, -key).toLowerCase();
+    const score = [...plain].filter((c) => common.includes(c)).length;
+    if (score > bestScore) { best = key; bestScore = score; }
+  }
+  return best;
+}
+
+const message = (prompt("Message") || "").trim() || "Meet me at the mango tree at noon";
+const key = parseInt(prompt("Shift"), 10) || 3;
+const secret = shift(message, key);
+console.log("Encoded:", secret);
+console.log("Decoded:", shift(secret, -key));
+console.log("Key found without being told:", crack(secret));
+
+=== roman-numerals | Roman Numerals | Tools | textformat.123 | Convert numbers to Roman numerals and back again.
+--- main.js
+// Add numbers or numerals (like 2024 or MCMXCIV) in Run Settings › Input.
+const TABLE = [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
+  [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+
+function toRoman(n) {
+  if (!Number.isInteger(n) || n < 1 || n > 3999) throw new Error("Use a whole number from 1 to 3999");
+  let out = "";
+  for (const [value, symbol] of TABLE) while (n >= value) { out += symbol; n -= value; }
+  return out;
+}
+
+function fromRoman(text) {
+  let total = 0, rest = text.toUpperCase();
+  for (const [value, symbol] of TABLE) while (rest.startsWith(symbol)) { total += value; rest = rest.slice(symbol.length); }
+  if (rest || toRoman(total) !== text.toUpperCase()) throw new Error(`${text} isn't a valid Roman numeral`);
+  return total;
+}
+
+const items = [];
+for (let line = prompt("Value"); line !== null && line.trim() !== ""; line = prompt("Value")) items.push(line.trim());
+for (const item of items.length ? items : ["2024", "1994", "49", "MCMXCIV", "XLII", "IIII"]) {
+  try { console.log(`${item} → ${/^\d+$/.test(item) ? toRoman(parseInt(item, 10)) : fromRoman(item)}`); }
+  catch (e) { console.log(`${item} → ${e.message}`); }
+}
+
+=== color-converter | Color Converter | Tools | paintpalette.fill | Convert hex colors to RGB and HSL, lighten them and check text contrast.
+--- main.js
+// Add hex colors like #ff9a1a in Run Settings › Input.
+function hexToRgb(hex) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = [...h].map((c) => c + c).join("");
+  if (!/^[0-9a-f]{6}$/i.test(h)) throw new Error(`${hex} isn't a hex color`);
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+const rgbToHex = (rgb) => "#" + rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+
+function rgbToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (d === 0) return [0, 0, Math.round(l * 100)];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [Math.round(h * 60), Math.round(s * 100), Math.round(l * 100)];
+}
+
+const lighten = (rgb, amount) => rgb.map((v) => v + (255 - v) * amount);
+
+// Relative brightness, used to pick readable text (the WCAG formula).
+function luminance(rgb) {
+  const [r, g, b] = rgb.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+const colors = [];
+for (let line = prompt("Color"); line !== null && line.trim() !== ""; line = prompt("Color")) colors.push(line.trim());
+for (const hex of colors.length ? colors : ["#ff9a1a", "#1c1a24", "#0af", "#nope"]) {
+  try {
+    const rgb = hexToRgb(hex), [h, s, l] = rgbToHsl(rgb);
+    console.log(`${hex}  rgb(${rgb.join(", ")})  hsl(${h}, ${s}%, ${l}%)  lighter: ${rgbToHex(lighten(rgb, 0.3))}  text: ${luminance(rgb) > 0.4 ? "black" : "white"}`);
+  } catch (e) { console.log(e.message); }
+}
+
+=== date-tools | Dates & Countdowns | Tools | calendar | Days until a date, your age in days, and what weekday you were born on.
+--- main.js
+// Input (optional): a date like 2000-05-17.
+const DAY = 24 * 60 * 60 * 1000;
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const daysBetween = (a, b) => Math.round((startOfDay(b) - startOfDay(a)) / DAY);
+
+function parse(text) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text.trim());
+  if (!m) throw new Error("Write dates like 2000-05-17");
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
+const today = startOfDay(new Date());
+const birthday = parse((prompt("Your birthday (YYYY-MM-DD)") || "").trim() || "2000-05-17");
+console.log(`Born on a ${WEEKDAYS[birthday.getDay()]}, ${daysBetween(birthday, today).toLocaleString()} days ago.`);
+
+let next = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
+if (next < today) next = new Date(today.getFullYear() + 1, birthday.getMonth(), birthday.getDate());
+console.log(`Next birthday: ${WEEKDAYS[next.getDay()]}, in ${daysBetween(today, next)} days (turning ${next.getFullYear() - birthday.getFullYear()}).`);
+
+const newYear = new Date(today.getFullYear() + 1, 0, 1);
+console.log(`Days until New Year: ${daysBetween(today, newYear)}`);
+const dayOfYear = daysBetween(new Date(today.getFullYear(), 0, 1), today) + 1;
+console.log(`Today is day ${dayOfYear} of the year, a ${WEEKDAYS[today.getDay()]}.`);
+
+=== string-toolkit | String Toolkit | Tools | textformat.abc | Handy text helpers: slugs, title case, palindromes, truncation and more.
+--- main.js
+// A set of small string functions you can copy into your own projects.
+const slugify = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+const camelCase = (s) => slugify(s).replace(/-(.)/g, (_, c) => c.toUpperCase());
+const truncate = (s, max) => (s.length <= max ? s : s.slice(0, max - 1).trimEnd() + "…");
+const isPalindrome = (s) => { const t = s.toLowerCase().replace(/[^a-z0-9]/g, ""); return t === [...t].reverse().join(""); };
+const countVowels = (s) => (s.match(/[aeiou]/gi) || []).length;
+const wrap = (s, width) => s.split(" ").reduce((lines, word) => {
+  const last = lines[lines.length - 1];
+  if ((last + " " + word).trim().length <= width) lines[lines.length - 1] = (last + " " + word).trim();
+  else lines.push(word);
+  return lines;
+}, [""]);
+
+const text = (prompt("Some text") || "").trim() || "A man, a plan, a canal: Panama";
+console.log("slug:      ", slugify(text));
+console.log("title:     ", titleCase(text));
+console.log("camelCase: ", camelCase(text));
+console.log("truncated: ", truncate(text, 18));
+console.log("palindrome:", isPalindrome(text));
+console.log("vowels:    ", countVowels(text));
+console.log("wrapped to 12 characters:");
+for (const line of wrap(text, 12)) console.log("  " + line);
+
+=== array-methods | Array Methods | Data | list.bullet.rectangle.fill | map, filter, reduce, sort and friends on a real list of people.
+--- main.js
+// The array methods you'll use every day.
+const people = [
+  { name: "Ada", age: 36, city: "London", skills: ["math", "code"] },
+  { name: "Linus", age: 28, city: "Helsinki", skills: ["code"] },
+  { name: "Grace", age: 45, city: "New York", skills: ["code", "navy"] },
+  { name: "Alan", age: 41, city: "London", skills: ["math", "logic", "code"] },
+];
+
+console.log("map     names:        ", people.map((p) => p.name));
+console.log("filter  over 40:      ", people.filter((p) => p.age > 40).map((p) => p.name));
+console.log("find    in Helsinki:  ", people.find((p) => p.city === "Helsinki").name);
+console.log("some    under 30?     ", people.some((p) => p.age < 30));
+console.log("every   adults?       ", people.every((p) => p.age >= 18));
+console.log("reduce  total age:    ", people.reduce((sum, p) => sum + p.age, 0));
+console.log("sort    by age:       ", [...people].sort((a, b) => a.age - b.age).map((p) => p.name));
+console.log("flatMap all skills:   ", [...new Set(people.flatMap((p) => p.skills))]);
+console.log("includes 'navy':      ", people.filter((p) => p.skills.includes("navy")).map((p) => p.name));
+
+const byCity = people.reduce((groups, p) => {
+  (groups[p.city] = groups[p.city] || []).push(p.name);
+  return groups;
+}, {});
+console.log("grouped by city:      ", byCity);
+
+const oldest = people.reduce((a, b) => (b.age > a.age ? b : a));
+console.log(`oldest: ${oldest.name} (${oldest.age}), average age ${people.reduce((s, p) => s + p.age, 0) / people.length}`);
+
+=== csv-report | CSV Sales Report | Data | tablecells.fill | Parse CSV text (quotes included) and total it by product and month.
+--- main.js
+// A CSV parser that copes with quoted fields, then a small sales report.
+const CSV = `month,product,units,price
+Jan,Mango,120,1.50
+Jan,Banana,200,0.40
+Jan,"Papaya, large",30,3.20
+Feb,Mango,150,1.50
+Feb,Banana,180,0.45
+Feb,"Papaya, large",45,3.20
+Mar,Mango,210,1.60
+Mar,Banana,160,0.45`;
+
+function parseCSV(text) {
+  const rows = text.trim().split("\n").map((line) => {
+    const cells = [];
+    let cell = "", quoted = false;
+    for (const ch of line) {
+      if (ch === '"') quoted = !quoted;
+      else if (ch === "," && !quoted) { cells.push(cell); cell = ""; }
+      else cell += ch;
+    }
+    cells.push(cell);
+    return cells;
+  });
+  const [header, ...body] = rows;
+  return body.map((cells) => Object.fromEntries(header.map((h, i) => [h, cells[i]])));
+}
+
+const sales = parseCSV(CSV).map((r) => ({ ...r, revenue: r.units * r.price }));
+const totalBy = (key) => sales.reduce((acc, r) => ({ ...acc, [r[key]]: (acc[r[key]] || 0) + r.revenue }), {});
+const total = sales.reduce((s, r) => s + r.revenue, 0);
+
+console.log(`${sales.length} sales, $${total.toFixed(2)} total\n\nBy product:`);
+for (const [product, revenue] of Object.entries(totalBy("product")).sort((a, b) => b[1] - a[1])) {
+  console.log(`  ${product.padEnd(14)} $${revenue.toFixed(2).padStart(8)}  ${(revenue / total * 100).toFixed(1)}%`);
+}
+console.log("\nBy month:");
+const months = totalBy("month"), top = Math.max(...Object.values(months));
+for (const [month, revenue] of Object.entries(months)) console.log(`  ${month} ${"█".repeat(Math.round(24 * revenue / top))} $${revenue.toFixed(0)}`);
+
+=== json-explorer | JSON Explorer | Data | curlybraces.square.fill | Walk through nested data as a tree and pull values out by path.
+--- main.js
+// Print any object as a tree, and read deep values safely with a path like "users.0.name".
+const data = {
+  app: "MangoIDE",
+  version: 1,
+  users: [
+    { name: "Ada", active: true, tags: ["admin", "dev"] },
+    { name: "Linus", active: false, tags: ["dev"] },
+    { name: "Grace", active: true, tags: [] },
+  ],
+  settings: { theme: "dark", fontSize: 14 },
+};
+
+function tree(value, indent = 0, key = null) {
+  const pad = "  ".repeat(indent), label = key === null ? "" : key + ": ";
+  if (Array.isArray(value)) {
+    console.log(`${pad}${label}[${value.length} items]`);
+    value.forEach((v, i) => tree(v, indent + 1, i));
+  } else if (value && typeof value === "object") {
+    console.log(`${pad}${label}{${Object.keys(value).length} keys}`);
+    for (const [k, v] of Object.entries(value)) tree(v, indent + 1, k);
+  } else {
+    console.log(`${pad}${label}${JSON.stringify(value)}`);
+  }
+}
+
+const get = (obj, path, fallback) => path.split(".").reduce((v, key) => (v == null ? v : v[key]), obj) ?? fallback;
+
+tree(data);
+console.log("\nusers.0.name        →", get(data, "users.0.name"));
+console.log("settings.theme      →", get(data, "settings.theme"));
+console.log("users.9.name        →", get(data, "users.9.name", "(nobody)"));
+console.log("active users        →", data.users.filter((u) => u.active).map((u) => u.name));
+console.log("round trip is equal →", JSON.stringify(JSON.parse(JSON.stringify(data))) === JSON.stringify(data));
+
+=== bar-chart | Text Bar Chart | Data | chart.bar.fill | Turn numbers into horizontal and vertical charts made of text.
+--- main.js
+const DATA = { Mon: 12, Tue: 18, Wed: 7, Thu: 22, Fri: 15, Sat: 30, Sun: 26 };
+const values = Object.values(DATA), top = Math.max(...values);
+
+console.log("Steps (thousands) this week\n");
+for (const [label, value] of Object.entries(DATA)) {
+  console.log(`${label.padStart(4)} │${"█".repeat(Math.round(30 * value / top))} ${value}`);
+}
+
+console.log("");
+const HEIGHT = 8;
+for (let level = HEIGHT; level >= 1; level--) {
+  console.log(values.map((v) => (v / top * HEIGHT >= level ? " ██ " : "    ")).join(" "));
+}
+console.log(Object.keys(DATA).map((l) => l.padStart(3).padEnd(4)).join(" "));
+
+const sum = values.reduce((a, b) => a + b, 0);
+const best = Object.keys(DATA).find((k) => DATA[k] === top);
+console.log(`\nTotal ${sum}, average ${(sum / values.length).toFixed(1)}, best day ${best}`);
+
+// A sparkline: one character per value.
+const blocks = "▁▂▃▄▅▆▇█";
+console.log("Sparkline: " + values.map((v) => blocks[Math.round((v / top) * (blocks.length - 1))]).join(""));
+
+=== data-pipeline | Data Cleaning Pipeline | Data | line.3.horizontal.decrease.circle.fill | Clean messy records step by step: trim, validate, remove duplicates, summarize.
+--- main.js
+// Real data is messy. Each step is a small function, and they're chained into a pipeline.
+const RAW = [
+  { name: "  ada lovelace ", email: "ADA@Example.com", age: "36" },
+  { name: "Linus Torvalds", email: "linus@example", age: "28" },
+  { name: "grace hopper", email: "grace@example.com", age: "forty-five" },
+  { name: "Ada Lovelace", email: "ada@example.com", age: "36" },
+  { name: "", email: "nobody@example.com", age: "20" },
+  { name: "Alan Turing", email: "alan@example.com", age: "41" },
+];
+
+const titleCase = (s) => s.trim().toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+const clean = (r) => ({ name: titleCase(r.name), email: r.email.trim().toLowerCase(), age: Number(r.age) });
+const problems = (r) => [
+  !r.name && "missing name",
+  !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) && "bad email",
+  !Number.isFinite(r.age) && "age isn't a number",
+].filter(Boolean);
+
+const cleaned = RAW.map(clean);
+const rejected = cleaned.map((r) => ({ r, why: problems(r) })).filter((x) => x.why.length);
+const valid = cleaned.filter((r) => problems(r).length === 0);
+const unique = [...new Map(valid.map((r) => [r.email, r])).values()];
+
+console.log(`${RAW.length} raw → ${valid.length} valid → ${unique.length} unique\n`);
+console.log("Kept:");
+for (const r of unique) console.log(`  ${r.name.padEnd(15)} ${r.email.padEnd(20)} ${r.age}`);
+console.log("\nRejected:");
+for (const { r, why } of rejected) console.log(`  ${(r.name || "(no name)").padEnd(15)} ${why.join(", ")}`);
+console.log(`\nAverage age of kept records: ${(unique.reduce((s, r) => s + r.age, 0) / unique.length).toFixed(1)}`);
+
+=== sorting-visualizer | Sorting Visualizer | Algorithms | chart.bar.xaxis | Watch bubble, insertion and quick sort work, and count their steps.
+--- main.js
+const show = (values, note = "") => console.log(values.map((v) => String(v).padStart(2)).join(" ") + "   " + note);
+
+function bubble(input) {
+  const a = [...input];
+  let steps = 0;
+  for (let end = a.length - 1; end > 0; end--) {
+    for (let i = 0; i < end; i++) {
+      steps++;
+      if (a[i] > a[i + 1]) [a[i], a[i + 1]] = [a[i + 1], a[i]];
+    }
+    show(a, `largest ${a[end]} bubbled to the end`);
+  }
+  return steps;
+}
+
+function insertion(input) {
+  const a = [...input];
+  let steps = 0;
+  for (let i = 1; i < a.length; i++) {
+    const item = a[i];
+    let j = i - 1;
+    while (j >= 0 && a[j] > item) { a[j + 1] = a[j]; j--; steps++; }
+    a[j + 1] = item;
+    show(a, `inserted ${item}`);
+  }
+  return steps;
+}
+
+function quick(input) {
+  let steps = 0;
+  const sort = (a) => {
+    if (a.length <= 1) return a;
+    const [pivot, ...rest] = a;
+    steps += rest.length;
+    return [...sort(rest.filter((x) => x < pivot)), pivot, ...sort(rest.filter((x) => x >= pivot))];
+  };
+  show(sort(input), "sorted by splitting around pivots");
+  return steps;
+}
+
+const values = Array.from({ length: 8 }, () => 1 + Math.floor(Math.random() * 40));
+for (const [name, fn] of [["Bubble sort", bubble], ["Insertion sort", insertion], ["Quicksort", quick]]) {
+  console.log(`\n${name}`);
+  show(values, "start");
+  console.log(`  ${fn(values)} comparisons`);
+}
+
+=== binary-search | Binary Search | Algorithms | magnifyingglass.circle.fill | Find a value in a sorted list by halving the search each step.
+--- main.js
+// Input (optional): the number to look for.
+function binarySearch(items, target) {
+  let low = 0, high = items.length - 1, steps = 0;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    steps++;
+    console.log(`  step ${steps}: position ${mid} holds ${items[mid]} (searching ${low}–${high})`);
+    if (items[mid] === target) return { index: mid, steps };
+    if (items[mid] < target) low = mid + 1; else high = mid - 1;
+  }
+  return { index: -1, steps };
+}
+
+const items = Array.from({ length: 99 }, (_, i) => (i + 1) * 3);   // 3, 6, 9 … 297
+const target = parseInt(prompt("Number to find"), 10) || 201;
+console.log(`Looking for ${target} in ${items.length} sorted numbers:`);
+const { index, steps } = binarySearch(items, target);
+console.log(index >= 0 ? `Found at position ${index}.` : "Not in the list.");
+console.log(`Binary search took ${steps} steps; checking one by one could take ${items.length}.`);
+console.log(`A million items would need at most ${Math.ceil(Math.log2(1e6))} steps.`);
+
+=== fibonacci | Fibonacci Three Ways | Algorithms | function | Slow recursion, memoization and a generator, timed against each other.
+--- main.js
+const fibSlow = (n) => (n < 2 ? n : fibSlow(n - 1) + fibSlow(n - 2));
+
+function memoize(fn) {
+  const cache = new Map();
+  return (n) => {
+    if (!cache.has(n)) cache.set(n, fn(n));
+    return cache.get(n);
+  };
+}
+const fibFast = memoize((n) => (n < 2 ? n : fibFast(n - 1) + fibFast(n - 2)));
+
+function* fibStream() {
+  let [a, b] = [0n, 1n];              // BigInt, so the numbers never lose precision
+  while (true) { yield a; [a, b] = [b, a + b]; }
+}
+
+function timed(label, fn, n) {
+  const start = Date.now();
+  const result = fn(n);
+  console.log(`fib(${n}) = ${result}  ${label.padEnd(16)} ${Date.now() - start} ms`);
+}
+
+timed("plain recursion", fibSlow, 27);
+timed("with a cache", fibFast, 27);
+
+const stream = fibStream();
+console.log("First 15: " + Array.from({ length: 15 }, () => stream.next().value).join(", "));
+let big;
+for (let i = 15; i <= 100; i++) big = stream.next().value;
+console.log("fib(100) exactly: " + big);
+
+=== prime-sieve | Prime Numbers | Algorithms | number.square.fill | Find every prime up to a limit, and split numbers into prime factors.
+--- main.js
+// Input (optional): the limit.
+function sieve(limit) {
+  const isPrime = Array(limit + 1).fill(true);
+  isPrime[0] = isPrime[1] = false;
+  for (let n = 2; n * n <= limit; n++) {
+    if (isPrime[n]) for (let multiple = n * n; multiple <= limit; multiple += n) isPrime[multiple] = false;
+  }
+  return isPrime.flatMap((prime, n) => (prime ? [n] : []));
+}
+
+function factors(n) {
+  const out = [];
+  for (let d = 2; d * d <= n; d++) while (n % d === 0) { out.push(d); n /= d; }
+  if (n > 1) out.push(n);
+  return out;
+}
+
+const limit = Math.min(Math.max(parseInt(prompt("Limit"), 10) || 100, 2), 1000000);
+const primes = sieve(limit);
+console.log(`${primes.length} primes up to ${limit}:`);
+console.log(primes.length <= 60 ? primes.join(" ") : primes.slice(0, 30).join(" ") + " … " + primes.slice(-5).join(" "));
+for (const n of [limit, 360, 97, 1001]) console.log(`${n} = ${factors(n).join(" × ")}`);
+const twins = primes.filter((p, i) => primes[i + 1] - p === 2).slice(0, 8);
+console.log("Twin primes: " + twins.map((p) => `(${p}, ${p + 2})`).join(" "));
+
+=== maze-solver | Maze Solver | Algorithms | arrow.triangle.turn.up.right.diamond.fill | Find the shortest way through a maze with breadth-first search.
+--- main.js
+// Edit the maze: # is a wall, S the start, E the end.
+const MAZE = `
+##########
+#S   #   #
+# ## # # #
+# #    # #
+# #### # #
+#    #   #
+#### # ###
+#      E #
+##########`.trim().split("\n");
+
+function find(char) {
+  for (let r = 0; r < MAZE.length; r++) if (MAZE[r].includes(char)) return [r, MAZE[r].indexOf(char)];
+}
+
+function solve() {
+  const start = find("S"), end = find("E");
+  const cameFrom = new Map([[start.join(), null]]);
+  const queue = [start];
+  while (queue.length) {
+    const [r, c] = queue.shift();
+    if (r === end[0] && c === end[1]) {
+      const path = [];
+      for (let at = end.join(); at; at = cameFrom.get(at)) path.push(at);
+      return path.reverse();
+    }
+    for (const [nr, nc] of [[r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]]) {
+      if (MAZE[nr][nc] !== "#" && !cameFrom.has(`${nr},${nc}`)) {
+        cameFrom.set(`${nr},${nc}`, `${r},${c}`);
+        queue.push([nr, nc]);
+      }
+    }
+  }
+  return null;
+}
+
+const path = solve();
+if (!path) console.log("No way through!");
+else {
+  const steps = new Set(path.slice(1, -1));
+  MAZE.forEach((row, r) => console.log([...row].map((ch, c) => (steps.has(`${r},${c}`) ? "•" : ch)).join("")));
+  console.log(`\nShortest path: ${path.length - 1} steps`);
+}
+
+=== n-queens | N-Queens Puzzle | Algorithms | crown.fill | Place queens so none can attack another, using backtracking.
+--- main.js
+// Input (optional): board size from 4 to 9.
+function solve(n) {
+  const solutions = [], cols = [];
+  const safe = (row, col) => cols.every((c, r) => c !== col && Math.abs(c - col) !== row - r);
+  (function place(row) {
+    if (row === n) { solutions.push([...cols]); return; }
+    for (let col = 0; col < n; col++) {
+      if (safe(row, col)) { cols.push(col); place(row + 1); cols.pop(); }
+    }
+  })(0);
+  return solutions;
+}
+
+const size = parseInt(prompt("Board size"), 10);
+const n = size >= 4 && size <= 9 ? size : 6;
+const solutions = solve(n);
+console.log(`${solutions.length} ways to place ${n} queens. The first:\n`);
+for (const col of solutions[0]) console.log(Array.from({ length: n }, (_, c) => (c === col ? "♛" : "·")).join(" "));
+console.log("\nSolutions by board size: " + [4, 5, 6, 7, 8].map((k) => `${k}→${solve(k).length}`).join("  "));
+
+=== sudoku-solver | Sudoku Solver | Algorithms | square.grid.3x3.topleft.filled | Solve any sudoku with backtracking. Edit the puzzle and run again.
+--- main.js
+// 0 means an empty square.
+const PUZZLE = [
+  "530070000", "600195000", "098000060",
+  "800060003", "400803001", "700020006",
+  "060000280", "000419005", "000080079",
+];
+
+function options(grid, r, c) {
+  const used = new Set([...grid[r], ...grid.map((row) => row[c])]);
+  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) used.add(grid[br + i][bc + j]);
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((d) => !used.has(d));
+}
+
+let tries = 0;
+function solve(grid) {
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    if (grid[r][c] !== 0) continue;
+    for (const digit of options(grid, r, c)) {
+      tries++;
+      grid[r][c] = digit;
+      if (solve(grid)) return true;
+      grid[r][c] = 0;
+    }
+    return false;
+  }
+  return true;
+}
+
+const draw = (grid) => grid.forEach((row, r) => {
+  if (r % 3 === 0 && r) console.log("------+-------+------");
+  console.log([0, 3, 6].map((i) => row.slice(i, i + 3).map((d) => d || "·").join(" ")).join(" | "));
+});
+
+const grid = PUZZLE.map((row) => [...row].map(Number));
+draw(grid);
+console.log(solve(grid) ? `\nSolved after trying ${tries} digits:\n` : "\nThis puzzle has no solution.");
+draw(grid);
+
+=== tower-of-hanoi | Tower of Hanoi | Algorithms | square.stack.3d.up.fill | Move a stack of discs between pegs with a three-line recursive rule.
+--- main.js
+// Input (optional): number of discs, 1 to 5.
+const count = parseInt(prompt("Discs"), 10);
+const discs = count >= 1 && count <= 5 ? count : 3;
+const pegs = [Array.from({ length: discs }, (_, i) => discs - i), [], []];
+let moves = 0;
+
+function draw() {
+  const width = discs * 2 + 1;
+  const center = (s) => { const pad = width - s.length; return " ".repeat(Math.floor(pad / 2)) + s + " ".repeat(Math.ceil(pad / 2)); };
+  for (let level = discs - 1; level >= 0; level--) {
+    console.log(pegs.map((peg) => center(peg[level] ? "█".repeat(peg[level] * 2 - 1) : "|")).join(""));
+  }
+  console.log(["A", "B", "C"].map(center).join("") + "\n");
+}
+
+function hanoi(n, from, to, spare) {
+  if (n === 0) return;
+  hanoi(n - 1, from, spare, to);
+  pegs[to].push(pegs[from].pop());
+  console.log(`Move ${++moves}: ${"ABC"[from]} → ${"ABC"[to]}`);
+  draw();
+  hanoi(n - 1, spare, to, from);
+}
+
+draw();
+hanoi(discs, 0, 2, 1);
+console.log(`Solved in ${moves} moves (the minimum is 2^${discs} - 1 = ${2 ** discs - 1}).`);
+
+=== shortest-path | Shortest Route (Dijkstra) | Algorithms | point.3.connected.trianglepath.dotted | Find the quickest route between cities on a weighted map.
+--- main.js
+// Roads between cities with their distances. Input (optional): start city, then destination.
+const ROADS = [
+  ["Amber", "Birch", 7], ["Amber", "Cedar", 9], ["Amber", "Fern", 14], ["Birch", "Cedar", 10],
+  ["Birch", "Dune", 15], ["Cedar", "Dune", 11], ["Cedar", "Fern", 2], ["Dune", "Elm", 6], ["Elm", "Fern", 9],
+];
+
+const graph = {};
+for (const [a, b, km] of ROADS) {
+  (graph[a] = graph[a] || {})[b] = km;
+  (graph[b] = graph[b] || {})[a] = km;
+}
+
+function shortest(start, goal) {
+  const dist = Object.fromEntries(Object.keys(graph).map((c) => [c, Infinity]));
+  const previous = {}, unvisited = new Set(Object.keys(graph));
+  dist[start] = 0;
+  while (unvisited.size) {
+    const here = [...unvisited].reduce((a, b) => (dist[a] <= dist[b] ? a : b));   // closest unvisited city
+    if (here === goal || dist[here] === Infinity) break;
+    unvisited.delete(here);
+    for (const [next, km] of Object.entries(graph[here])) {
+      if (dist[here] + km < dist[next]) { dist[next] = dist[here] + km; previous[next] = here; }
+    }
+  }
+  const path = [];
+  for (let at = goal; at; at = previous[at]) path.unshift(at);
+  return { km: dist[goal], path };
+}
+
+const cities = Object.keys(graph);
+const pickCity = (text, fallback) => cities.find((c) => c.toLowerCase() === (text || "").trim().toLowerCase()) || fallback;
+const start = pickCity(prompt("From"), "Amber"), goal = pickCity(prompt("To"), "Elm");
+const { km, path } = shortest(start, goal);
+console.log(`${start} → ${goal}: ${path.join(" → ")} (${km} km)`);
+console.log(`\nEvery route from ${start}:`);
+for (const city of cities) if (city !== start) { const r = shortest(start, city); console.log(`  ${city.padEnd(6)} ${String(r.km).padStart(3)} km  via ${r.path.join(" → ")}`); }
+
+=== closures | Closures & Scope | Learn JavaScript | lock.open.fill | Functions that remember: counters, private data and once-only helpers.
+--- main.js
+// A closure is a function that keeps access to the variables around it, even after that code finished.
+
+function makeCounter(start = 0) {
+  let count = start;                         // private: only the returned functions can reach it
+  return { next: () => ++count, reset: () => { count = start; }, get value() { return count; } };
+}
+const a = makeCounter(), b = makeCounter(100);
+a.next(); a.next(); b.next();
+console.log("Two independent counters:", a.value, b.value);
+
+const multiplyBy = (factor) => (n) => n * factor;
+const double = multiplyBy(2), triple = multiplyBy(3);
+console.log("Function factories:", double(21), triple(21));
+
+function once(fn) {
+  let done = false, result;
+  return (...args) => { if (!done) { done = true; result = fn(...args); } return result; };
+}
+const setup = once(() => { console.log("  (setup runs)"); return "ready"; });
+console.log("once:", setup(), setup(), setup());
+
+// The classic loop trap: var shares one variable, let makes a new one per turn.
+const withVar = [], withLet = [];
+for (var i = 0; i < 3; i++) withVar.push(() => i);
+for (let j = 0; j < 3; j++) withLet.push(() => j);
+console.log("var in a loop:", withVar.map((f) => f()), " let in a loop:", withLet.map((f) => f()));
+
+function bankAccount(balance) {
+  return {
+    deposit(amount) { balance += amount; return balance; },
+    withdraw(amount) { if (amount > balance) throw new Error("Not enough money"); balance -= amount; return balance; },
+  };
+}
+const account = bankAccount(50);
+console.log("Private balance:", account.deposit(25), account.withdraw(60), "direct access:", account.balance);
+
+=== classes | Classes & Inheritance | Learn JavaScript | building.columns.fill | Classes, getters, private fields, static methods and extends.
+--- main.js
+class Account {
+  #balance = 0;                              // # makes a field truly private
+  static count = 0;
+
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.#balance = balance;
+    this.history = [];
+    Account.count++;
+  }
+
+  get balance() { return this.#balance; }
+
+  deposit(amount) {
+    if (amount <= 0) throw new RangeError("Deposit must be more than zero");
+    this.#balance += amount;
+    this.history.push(["deposit", amount]);
+    return this;                             // returning this allows chaining
+  }
+
+  withdraw(amount) {
+    if (amount > this.#balance) throw new Error(`${this.owner} only has $${this.#balance.toFixed(2)}`);
+    this.#balance -= amount;
+    this.history.push(["withdraw", amount]);
+    return this;
+  }
+
+  toString() { return `${this.constructor.name}(${this.owner}, $${this.#balance.toFixed(2)})`; }
+}
+
+class SavingsAccount extends Account {
+  constructor(owner, balance, rate = 0.04) { super(owner, balance); this.rate = rate; }
+  addInterest() { return this.deposit(Math.round(this.balance * this.rate * 100) / 100); }
+  withdraw(amount) {
+    if (amount > 500) throw new Error("Savings withdrawals are limited to $500");
+    return super.withdraw(amount);
+  }
+}
+
+const ada = new Account("Ada", 100), bob = new SavingsAccount("Bob", 500);
+ada.deposit(50).withdraw(30);
+bob.addInterest();
+console.log(String(ada), String(bob));
+for (const attempt of [() => ada.withdraw(1000), () => bob.withdraw(501), () => ada.deposit(-5)]) {
+  try { attempt(); } catch (e) { console.log(`Refused (${e.name}): ${e.message}`); }
+}
+console.log("Ada's history:", ada.history);
+console.log("Accounts made:", Account.count, "| bob is an Account?", bob instanceof Account);
+
+=== destructuring | Destructuring & Spread | Learn JavaScript | square.split.2x2.fill | Unpack arrays and objects, copy and merge them, and write flexible functions.
+--- main.js
+const user = { name: "Ada", age: 36, address: { city: "London", country: "UK" }, tags: ["admin", "dev"] };
+
+// Objects: pick fields, rename them, give defaults, reach into nested ones.
+const { name, age: years, role = "member", address: { city } } = user;
+console.log(name, years, role, city);
+
+// Arrays: by position, skipping and collecting the rest.
+const [first, , third = "none", ...others] = ["a", "b", "c", "d", "e"];
+console.log(first, third, others);
+
+// Swap without a temporary variable.
+let x = 1, y = 2;
+[x, y] = [y, x];
+console.log("swapped:", x, y);
+
+// Spread copies and merges. The original is untouched.
+const older = { ...user, age: user.age + 1, tags: [...user.tags, "mentor"] };
+console.log("original age:", user.age, "copy age:", older.age, "copy tags:", older.tags);
+console.log("merged arrays:", [...[1, 2], ...[3, 4]], " max:", Math.max(...[5, 9, 2]));
+
+// Functions: named options with defaults, and any number of arguments.
+function createPost({ title, body = "", tags = [], published = false } = {}) {
+  return `${published ? "✅" : "📝"} ${title} (${tags.length} tags, ${body.length} chars)`;
+}
+console.log(createPost({ title: "Hello", tags: ["intro"] }));
+const sum = (...numbers) => numbers.reduce((a, b) => a + b, 0);
+console.log("sum of any amount:", sum(1, 2, 3, 4, 5));
+
+// Looping over entries.
+for (const [key, value] of Object.entries({ theme: "dark", fontSize: 14 })) console.log(`  ${key} = ${value}`);
+const { tags, ...withoutTags } = user;
+console.log("everything except tags:", Object.keys(withoutTags));
+
+=== promises | Promises & async/await | Learn JavaScript | bolt.horizontal.fill | Run slow jobs one after another or all at once, and handle failures.
+--- main.js
+// setTimeout works here, but waits are skipped: timers fire in order instantly.
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function download(name, ms, fail = false) {
+  await sleep(ms);
+  if (fail) throw new Error(`${name} failed to download`);
+  return `${name}.zip`;
+}
+
+async function main() {
+  console.log("One by one (each waits for the one before):");
+  for (const [name, ms] of [["photos", 300], ["music", 200]]) console.log("  got", await download(name, ms));
+
+  console.log("All at once (finished when the slowest is done):");
+  console.log("  got", await Promise.all([download("photos", 300), download("music", 200), download("docs", 100)]));
+
+  console.log("First one to finish wins:");
+  console.log("  got", await Promise.race([download("slow", 500), download("fast", 50)]));
+
+  console.log("Handling a failure with try/catch:");
+  try { await download("broken", 100, true); }
+  catch (e) { console.log("  caught:", e.message); }
+
+  console.log("allSettled reports every result, good or bad:");
+  const results = await Promise.allSettled([download("a", 10), download("b", 20, true)]);
+  for (const r of results) console.log("  ", r.status, r.value || r.reason.message);
+
+  console.log("Retrying until it works:");
+  let attempt = 0;
+  const flaky = async () => { if (++attempt < 3) throw new Error("try again"); return `worked on attempt ${attempt}`; };
+  for (;;) { try { console.log("  ", await flaky()); break; } catch (e) { await sleep(100); } }
+}
+
+main().then(() => console.log("Done."));
+console.log("(This line prints first: async code doesn't block.)");
+
+=== generators | Generators & Iterators | Learn JavaScript | arrow.triangle.branch | Make values on demand: endless sequences, pipelines and your own loops.
+--- main.js
+// A generator function pauses at each yield and continues when asked for the next value.
+function* numbers(start = 1) { for (let n = start; ; n++) yield n; }
+function* take(count, source) { for (const item of source) { if (count-- <= 0) return; yield item; } }
+function* filter(test, source) { for (const item of source) if (test(item)) yield item; }
+function* map(fn, source) { for (const item of source) yield fn(item); }
+
+const evenSquares = map((n) => n * n, filter((n) => n % 2 === 0, numbers()));
+console.log("First 8 even squares:", [...take(8, evenSquares)]);
+
+function* chunks(list, size) { for (let i = 0; i < list.length; i += size) yield list.slice(i, i + size); }
+console.log("In batches of 4:", [...chunks([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 4)]);
+
+// Make your own object work with for…of and spread.
+class Range {
+  constructor(from, to, step = 1) { Object.assign(this, { from, to, step }); }
+  *[Symbol.iterator]() { for (let n = this.from; n <= this.to; n += this.step) yield n; }
+}
+console.log("Custom iterable:", [...new Range(0, 20, 5)], " sum:", [...new Range(1, 10)].reduce((a, b) => a + b));
+
+// Stepping through by hand.
+const it = numbers(10);
+console.log("Manual next():", it.next().value, it.next().value, it.next());
+
+// Walking a tree, deepest items included.
+const tree = { name: "root", children: [{ name: "src", children: [{ name: "main.js" }, { name: "util.js" }] }, { name: "README.md" }] };
+function* walk(node, depth = 0) {
+  yield "  ".repeat(depth) + node.name;
+  for (const child of node.children || []) yield* walk(child, depth + 1);
+}
+for (const line of walk(tree)) console.log(line);
+
+=== error-handling | Handling Errors | Learn JavaScript | exclamationmark.shield.fill | try, catch, finally, your own error types, and safe defaults.
+--- main.js
+class ValidationError extends Error {
+  constructor(field, message) {
+    super(message);
+    this.name = "ValidationError";
+    this.field = field;
+  }
+}
+
+function parseAge(text) {
+  const age = Number(text);
+  if (!Number.isInteger(age)) throw new ValidationError("age", `"${text}" isn't a whole number`);
+  if (age < 0 || age > 130) throw new ValidationError("age", `${age} isn't a realistic age`);
+  return age;
+}
+
+for (const text of ["42", "abc", "-5", "999"]) {
+  try {
+    console.log(`"${text}" → age ${parseAge(text)}`);
+  } catch (e) {
+    if (e instanceof ValidationError) console.log(`"${text}" → rejected (${e.field}): ${e.message}`);
+    else throw e;                            // not ours: let it carry on up
+  }
+}
+
+function readConfig(json) {
+  try {
+    return JSON.parse(json);
+  } catch (e) {
+    console.log("  bad JSON, using defaults:", e.name);
+    return { theme: "light" };
+  } finally {
+    console.log("  (finally always runs)");
+  }
+}
+console.log(readConfig('{"theme":"dark"}'));
+console.log(readConfig("{oops"));
+
+// Avoiding errors in the first place.
+const user = { profile: null };
+console.log("Optional chaining:", user.profile?.email, "| with a default:", user.profile?.email ?? "no email");
+console.log("Missing function, safely:", user.sayHi?.() ?? "nothing to call");
+
+// A helper that turns thrown errors into values.
+const attempt = (fn) => { try { return [null, fn()]; } catch (e) { return [e, null]; } };
+const [error, value] = attempt(() => parseAge("12.5"));
+console.log(error ? `Failed: ${error.message}` : `Value: ${value}`);
+
+=== map-set | Map & Set | Learn JavaScript | circle.grid.2x2.fill | When to use Map and Set instead of plain objects and arrays.
+--- main.js
+// Set: a collection with no duplicates.
+const visits = ["ada", "bob", "ada", "cy", "bob", "ada"];
+const unique = new Set(visits);
+console.log("Unique visitors:", [...unique], "count:", unique.size, "has cy?", unique.has("cy"));
+
+const a = new Set([1, 2, 3, 4]), b = new Set([3, 4, 5]);
+console.log("Union:       ", [...new Set([...a, ...b])]);
+console.log("Intersection:", [...a].filter((x) => b.has(x)));
+console.log("Difference:  ", [...a].filter((x) => !b.has(x)));
+
+// Map: keys can be anything, order is kept, and size is built in.
+const counts = new Map();
+for (const name of visits) counts.set(name, (counts.get(name) || 0) + 1);
+console.log("Visit counts:", [...counts].map(([name, n]) => `${name}=${n}`).join(", "));
+const [topName, topCount] = [...counts].sort((x, y) => y[1] - x[1])[0];
+console.log(`Most visits: ${topName} (${topCount})`);
+
+const ada = { name: "Ada" }, bob = { name: "Bob" };
+const notes = new Map([[ada, "likes math"], [bob, "likes sailing"]]);
+console.log("Objects as keys:", notes.get(ada), "|", notes.get(bob));
+
+// Grouping.
+const words = ["apple", "avocado", "banana", "blueberry", "cherry"];
+const byLetter = new Map();
+for (const w of words) byLetter.set(w[0], [...(byLetter.get(w[0]) || []), w]);
+for (const [letter, list] of byLetter) console.log(`  ${letter}: ${list.join(", ")}`);
+
+// A tiny cache that forgets the oldest entry.
+class LRU {
+  constructor(limit) { this.limit = limit; this.items = new Map(); }
+  get(key) { if (!this.items.has(key)) return undefined; const v = this.items.get(key); this.items.delete(key); this.items.set(key, v); return v; }
+  set(key, value) { this.items.delete(key); this.items.set(key, value); if (this.items.size > this.limit) this.items.delete(this.items.keys().next().value); }
+}
+const cache = new LRU(2);
+cache.set("a", 1); cache.set("b", 2); cache.get("a"); cache.set("c", 3);
+console.log("Cache keeps the 2 most recently used:", [...cache.items.keys()]);
+
+=== regex | Regular Expressions | Learn JavaScript | text.viewfinder | Find, check and pull apart text with patterns.
+--- main.js
+const text = "Call 555-0142 or 555-0199 before 5pm. Email ada@example.com or grace.h@navy.mil. Order #A-1042 shipped 2024-03-15.";
+
+console.log("Phone numbers:", text.match(/\d{3}-\d{4}/g));
+console.log("Emails:       ", text.match(/[\w.]+@[\w.]+\.\w+/g));
+console.log("Has a time?   ", /\d{1,2}(am|pm)/.test(text));
+
+// Groups pull out the parts. Named groups read better.
+const date = /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/.exec(text);
+console.log("Date parts:   ", date.groups.year, date.groups.month, date.groups.day);
+
+// replace can reorder groups or call a function.
+console.log("US format:    ", "2024-03-15".replace(/(\d+)-(\d+)-(\d+)/, "$2/$3/$1"));
+console.log("Masked:       ", text.replace(/\d{3}-(\d{4})/g, "***-$1").slice(0, 40) + "…");
+console.log("Shouting:     ", "make this loud".replace(/\b\w/g, (c) => c.toUpperCase()));
+
+// matchAll gives every match with its groups.
+for (const m of "width=120, height=80, depth=5".matchAll(/(\w+)=(\d+)/g)) console.log(`  ${m[1]} is ${m[2]}`);
+
+// Validating input.
+const checks = {
+  username: /^[a-z][a-z0-9_]{2,15}$/,
+  hexColor: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i,
+  strongPassword: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+};
+for (const [value, rule] of [["ada_99", "username"], ["9lives", "username"], ["#ff9a1a", "hexColor"], ["Passw0rdOK", "strongPassword"], ["weak", "strongPassword"]]) {
+  console.log(`${value.padEnd(11)} ${rule.padEnd(15)} ${checks[rule].test(value) ? "✅" : "❌"}`);
+}
+console.log("Split on any spacing or commas:", "a, b;c   d".split(/[\s,;]+/));
+
+=== higher-order | Functions as Values | Learn JavaScript | function | Compose, curry, debounce and memoize: functions that take and return functions.
+--- main.js
+// Functions are values: store them, pass them, return them.
+const compose = (...fns) => (input) => fns.reduceRight((value, fn) => fn(value), input);
+const pipe = (...fns) => (input) => fns.reduce((value, fn) => fn(value), input);
+
+const trim = (s) => s.trim();
+const lower = (s) => s.toLowerCase();
+const dashes = (s) => s.replace(/\s+/g, "-");
+const slug = pipe(trim, lower, dashes);
+console.log("pipe:", slug("  Hello Big World  "), "| compose:", compose(dashes, lower, trim)("  Same Result  "));
+
+// Currying: give arguments one at a time.
+const curry = (fn) => function curried(...args) {
+  return args.length >= fn.length ? fn(...args) : (...more) => curried(...args, ...more);
+};
+const volume = curry((l, w, h) => l * w * h);
+console.log("curry:", volume(2)(3)(4), volume(2, 3)(4), volume(2)(3, 4));
+
+// Partial application: fix some arguments now.
+const greet = (greeting, name) => `${greeting}, ${name}!`;
+const hello = greet.bind(null, "Hello");
+console.log("partial:", hello("Ada"), hello("Bob"));
+
+// Memoize: remember answers to expensive questions.
+const memoize = (fn) => { const cache = new Map(); return (n) => cache.has(n) ? cache.get(n) : (cache.set(n, fn(n)), cache.get(n)); };
+let calls = 0;
+const slowSquare = (n) => { calls++; return n * n; };
+const fastSquare = memoize(slowSquare);
+[4, 4, 4, 5].forEach(fastSquare);
+console.log("memoize: 4 requests,", calls, "real calculations");
+
+// Debounce: wait for a pause before acting (think search-as-you-type).
+const debounce = (fn, ms) => { let timer; return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); }; };
+const search = debounce((query) => console.log(`debounce: searching for "${query}" once, after typing stopped`), 300);
+["m", "ma", "man", "mango"].forEach(search);
+
+// Your own array helper built from a callback.
+const groupBy = (list, keyOf) => list.reduce((groups, item) => { (groups[keyOf(item)] = groups[keyOf(item)] || []).push(item); return groups; }, {});
+console.log("groupBy:", groupBy(["apple", "fig", "kiwi", "plum", "pear"], (w) => w.length));
+
+=== event-emitter | Events & State Machine | Learn JavaScript | antenna.radiowaves.left.and.right | Build an event system, then a traffic light that can only change in legal ways.
+--- main.js
+// Events let parts of a program talk without knowing about each other.
+class Emitter {
+  #listeners = new Map();
+  on(event, fn) { this.#listeners.set(event, [...(this.#listeners.get(event) || []), fn]); return () => this.off(event, fn); }
+  off(event, fn) { this.#listeners.set(event, (this.#listeners.get(event) || []).filter((f) => f !== fn)); }
+  once(event, fn) { const stop = this.on(event, (...args) => { stop(); fn(...args); }); }
+  emit(event, ...args) { (this.#listeners.get(event) || []).forEach((fn) => fn(...args)); }
+}
+
+const shop = new Emitter();
+const stopLogging = shop.on("sale", (item, price) => console.log(`  log: sold ${item} for $${price}`));
+let revenue = 0;
+shop.on("sale", (_, price) => { revenue += price; });
+shop.once("sale", () => console.log("  🎉 first sale of the day!"));
+shop.emit("sale", "mango", 2);
+shop.emit("sale", "blender", 49);
+stopLogging();
+shop.emit("sale", "lime", 1);
+console.log("Revenue:", revenue, "(the last sale wasn't logged: that listener was removed)\n");
+
+// A state machine: a list of states and which moves are allowed between them.
+class Machine extends Emitter {
+  constructor(start, transitions) { super(); this.state = start; this.transitions = transitions; }
+  send(action) {
+    const next = this.transitions[this.state]?.[action];
+    if (!next) { console.log(`  ✗ can't "${action}" while ${this.state}`); return; }
+    const from = this.state;
+    this.state = next;
+    this.emit("change", from, next);
+  }
+}
+const light = new Machine("red", {
+  red: { next: "green" },
+  green: { next: "yellow", emergency: "red" },
+  yellow: { next: "red" },
+});
+light.on("change", (from, to) => console.log(`  ${from} → ${to}`));
+for (const action of ["next", "next", "emergency", "next", "next", "emergency"]) light.send(action);
+console.log("Light ends on:", light.state);
