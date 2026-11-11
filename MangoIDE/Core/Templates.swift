@@ -43,7 +43,7 @@ enum TemplateLibrary {
     }()
 
     static func languageName(_ id: String) -> String {
-        ["python": "Python", "tweak": "iOS Tweaks", "javascript": "JavaScript", "html": "Web", "cpp": "C++", "csharp": "C#"][id]
+        ["python": "Python", "web": "Web", "tweak": "iOS Tweaks", "javascript": "JavaScript", "html": "Web", "cpp": "C++", "csharp": "C#"][id]
             ?? id.prefix(1).uppercased() + id.dropFirst()
     }
 

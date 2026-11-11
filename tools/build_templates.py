@@ -85,6 +85,9 @@ def main():
         can = {"python": True, "javascript": bool(shutil.which("node")), "swift": bool(shutil.which("swiftc"))}
         only = [a[7:] for a in sys.argv if a.startswith("--only=")]
         if "--test" in sys.argv and can.get(lang) and (not only or lang in only): failures += test(ts)
+        if "--test" in sys.argv and lang == "web" and shutil.which("node") and (not only or lang in only):
+            # Web pages are opened in a phone-sized browser instead (skips itself without Playwright).
+            failures += subprocess.run(["node", os.path.join(ROOT, "tools", "web_test.js")]).returncode
     sys.exit(1 if failures else 0)
 
 if __name__ == "__main__":

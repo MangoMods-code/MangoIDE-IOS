@@ -6,10 +6,12 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var confirmReset = false
     @State private var search = ""
+    @State private var templateCount = 0
 
     /// Every settings page, so search can find them by name or by what's inside.
     private struct Page: Identifiable {
         let title: String
+        let subtitle: String
         let symbol: String
         let color: Color
         let keywords: String
@@ -26,92 +28,250 @@ struct SettingsView: View {
     private var groups: [Group] {
         [
             Group(title: "Pro & Purchases", pages: [
-                Page(title: "MangoIDE Pro", symbol: "star.fill", color: .orange, keywords: "subscription upgrade billing stripe pay price plan manage cancel") { AnyView(ProView()) },
-                Page(title: "AI Credit", symbol: "creditcard.fill", color: .green, keywords: "top up balance agent money stripe payment receipts refund") { AnyView(CreditView()) },
+                Page(title: "MangoIDE Pro", subtitle: "Cloud sync, full GitHub, sharing", symbol: "star.fill", color: .orange, keywords: "subscription upgrade billing stripe pay price plan manage cancel") { AnyView(ProView()) },
+                Page(title: "AI Credit", subtitle: "Balance and top-ups for the agent", symbol: "creditcard.fill", color: .green, keywords: "top up balance agent money stripe payment receipts refund") { AnyView(CreditView()) },
             ]),
             Group(title: "Cloud & Collaboration", pages: [
-                Page(title: "Cloud Sync & Backup", symbol: "icloud.fill", color: .cyan, keywords: "sync backup restore devices storage") { AnyView(CloudView()) },
-                Page(title: "GitHub", symbol: "arrow.triangle.branch", color: .black, keywords: "git clone push pull commit repo publish branch") { AnyView(GitHubSettings()) },
-                Page(title: "Sharing & Live Sessions", symbol: "person.2.fill", color: .mint, keywords: "share link collaborate live session invite cursors together") { AnyView(SharingSettings()) },
+                Page(title: "Cloud Sync & Backup", subtitle: "Projects on all your devices", symbol: "icloud.fill", color: .cyan, keywords: "sync backup restore devices storage") { AnyView(CloudView()) },
+                Page(title: "GitHub", subtitle: "Clone, commit, push and publish", symbol: "arrow.triangle.branch", color: Color(white: 0.25), keywords: "git clone push pull commit repo publish branch") { AnyView(GitHubSettings()) },
+                Page(title: "Sharing & Live Sessions", subtitle: "Share links and edit together", symbol: "person.2.fill", color: .mint, keywords: "share link collaborate live session invite cursors together") { AnyView(SharingSettings()) },
             ]),
             Group(title: "Editing", pages: [
-                Page(title: "Editor", symbol: "character.cursor.ibeam", color: .blue, keywords: "font size line numbers wrap indentation tabs spaces autosave save trim") { AnyView(EditorSettings()) },
-                Page(title: "Keyboard", symbol: "keyboard", color: .gray, keywords: "brackets autocomplete key bar accessory smart") { AnyView(KeyboardSettings()) },
-                Page(title: "Themes", symbol: "paintpalette.fill", color: .pink, keywords: "color dark light holiday accent appearance") { AnyView(AppearanceSettings()) },
-                Page(title: "Backgrounds & Effects", symbol: "photo.fill", color: .purple, keywords: "wallpaper live photo gif video snow effects seasonal") { AnyView(BackgroundSettings()) },
-                Page(title: "Layout", symbol: "rectangle.3.group", color: .indigo, keywords: "status bar tabs split sidebar console file icons") { AnyView(LayoutSettings()) },
+                Page(title: "Editor", subtitle: "Font, indentation, suggestions, saving", symbol: "character.cursor.ibeam", color: .blue, keywords: "font size line numbers wrap indentation tabs spaces autosave save trim suggestions errors") { AnyView(EditorSettings()) },
+                Page(title: "Keyboard", subtitle: "The key bar above the keyboard", symbol: "keyboard", color: .gray, keywords: "brackets autocomplete key bar accessory smart") { AnyView(KeyboardSettings()) },
+                Page(title: "Themes", subtitle: "Colors for the editor and the app", symbol: "paintpalette.fill", color: .pink, keywords: "color dark light holiday accent appearance") { AnyView(AppearanceSettings()) },
+                Page(title: "Backgrounds & Effects", subtitle: "Photos, videos and seasonal effects", symbol: "photo.fill", color: .purple, keywords: "wallpaper live photo gif video snow effects seasonal") { AnyView(BackgroundSettings()) },
+                Page(title: "Layout", subtitle: "Bars, tabs, split view, sidebar", symbol: "rectangle.3.group", color: .indigo, keywords: "status bar tabs split sidebar console file icons") { AnyView(LayoutSettings()) },
             ]),
             Group(title: "Workspace", pages: [
-                Page(title: "Files & Projects", symbol: "folder.fill", color: .orange, keywords: "projects folder new files templates") { AnyView(FileSettings()) },
-                Page(title: "Run & Console", symbol: "play.rectangle.fill", color: .green, keywords: "runner server key languages execute console") { AnyView(RunSettings()) },
-                Page(title: "Agent", symbol: "sparkles", color: .indigo, keywords: "ai claude anthropic key model memory approvals cloud workspace") { AnyView(AgentSettings()) },
-                Page(title: "Extensions", symbol: "puzzlepiece.extension.fill", color: .purple, keywords: "install themes languages snippets") { AnyView(ExtensionsView()) },
+                Page(title: "Files & Projects", subtitle: "Folders and new-project options", symbol: "folder.fill", color: .orange, keywords: "projects folder new files templates") { AnyView(FileSettings()) },
+                Page(title: "Run & Console", subtitle: "Runner server and how code runs", symbol: "play.rectangle.fill", color: .green, keywords: "runner server key languages execute console") { AnyView(RunSettings()) },
+                Page(title: "Agent", subtitle: "Model, key, approvals and limits", symbol: "sparkles", color: .indigo, keywords: "ai claude anthropic key model memory approvals cloud workspace") { AnyView(AgentSettings()) },
+                Page(title: "Extensions", subtitle: "Extra themes, languages and snippets", symbol: "puzzlepiece.extension.fill", color: .purple, keywords: "install themes languages snippets") { AnyView(ExtensionsView()) },
             ]),
             Group(title: "App", pages: [
-                Page(title: "General", symbol: "gearshape.fill", color: .gray, keywords: "haptics screen awake welcome") { AnyView(GeneralSettings()) },
-                Page(title: "Privacy & Security", symbol: "lock.shield.fill", color: .blue, keywords: "keychain keys sign out devices sessions password") { AnyView(PrivacySettings()) },
-                Page(title: "Storage", symbol: "internaldrive.fill", color: .gray, keywords: "space clear cache drafts temporary size") { AnyView(StorageSettings()) },
+                Page(title: "General", subtitle: "Haptics, screen and start-up", symbol: "gearshape.fill", color: .gray, keywords: "haptics screen awake welcome") { AnyView(GeneralSettings()) },
+                Page(title: "Privacy & Security", subtitle: "Saved keys and signing out", symbol: "lock.shield.fill", color: .blue, keywords: "keychain keys sign out devices sessions password") { AnyView(PrivacySettings()) },
+                Page(title: "Storage", subtitle: "Space used and clean-up", symbol: "internaldrive.fill", color: .gray, keywords: "space clear cache drafts temporary size") { AnyView(StorageSettings()) },
             ]),
         ]
     }
 
     private var results: [Page] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return groups.flatMap(\.pages).filter { ($0.title + " " + $0.keywords).lowercased().contains(q) }
+        return groups.flatMap(\.pages).filter { ($0.title + " " + $0.subtitle + " " + $0.keywords).lowercased().contains(q) }
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                if search.isEmpty {
-                    Section {
-                        NavigationLink { AccountView() } label: { AccountRow() }
-                    }
-                    ForEach(groups) { g in
-                        Section(g.title) {
-                            ForEach(g.pages) { page in
-                                NavigationLink { page.destination() } label: { row(page.title, page.symbol, page.color) }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 22) {
+                    if search.isEmpty {
+                        NavigationLink { AccountView().settingsPage() } label: { AccountHero() }
+                            .buttonStyle(PressableStyle(scale: 0.98))
+                            .appearRise(0)
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(group.title.uppercased())
+                                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(0.6)
+                                    .padding(.leading, 6)
+                                card(group.pages)
                             }
+                            .appearRise(index + 1)
                         }
-                    }
-                    Section("About") {
-                        LabeledContent("Version", value: Bundle.main.appVersion)
-                        LabeledContent("Build", value: Bundle.main.appBuild)
-                        LabeledContent("Languages", value: "\(extensions.allLanguages.count)")
-                        LabeledContent("Themes", value: "\(extensions.allThemes.count)")
-                        NavigationLink { DiagnosticsView() } label: { Label("File Access Diagnostics", systemImage: "stethoscope") }
-                    }
-                    Section {
-                        Button("Reset All Settings", role: .destructive) { confirmReset = true }
-                    } footer: {
-                        Text("Your files, account, linked folders and extensions are kept.")
-                    }
-                } else {
-                    if results.isEmpty { Text("No settings match “\(search)”.").foregroundStyle(.secondary) }
-                    ForEach(results) { page in
-                        NavigationLink { page.destination() } label: { row(page.title, page.symbol, page.color) }
+                        about.appearRise(groups.count + 1)
+                    } else if results.isEmpty {
+                        Text("No settings match “\(search)”.")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                    } else {
+                        card(results)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
+            .background(SettingsBackdrop())
             .navigationTitle("Settings")
             .searchable(text: $search, prompt: "Search settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Reset every setting to its default?", isPresented: $confirmReset, titleVisibility: .visible) {
                 Button("Reset", role: .destructive) { settings.resetAll() }
             }
+            .task {
+                templateCount = await Task.detached(priority: .utility) { TemplateLibrary.all.count }.value
+            }
         }
     }
 
-    private func row(_ title: String, _ symbol: String, _ color: Color) -> some View {
-        Label {
-            Text(title)
-        } icon: {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    /// A rounded panel of rows.
+    private func card(_ pages: [Page]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(pages.enumerated()), id: \.element.id) { i, page in
+                NavigationLink { page.destination().settingsPage() } label: { row(page) }
+                    .buttonStyle(PressableStyle(scale: 0.985))
+                if i < pages.count - 1 { Divider().padding(.leading, 62) }
+            }
         }
+        .settingsCard()
+    }
+
+    private func row(_ page: Page) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: page.symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(page.color.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .shadow(color: page.color.opacity(0.35), radius: 5, y: 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(page.title).font(.body.weight(.medium)).foregroundStyle(.primary)
+                Text(page.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+    }
+
+    private var about: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ABOUT").font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(0.6).padding(.leading, 6)
+            HStack(spacing: 10) {
+                stat("\(extensions.allLanguages.count)", "Languages", "chevron.left.forwardslash.chevron.right")
+                stat("\(extensions.allThemes.count)", "Themes", "paintpalette")
+                stat(templateCount == 0 ? "…" : "\(templateCount)", "Templates", "square.grid.2x2")
+            }
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Version").foregroundStyle(.primary)
+                    Spacer()
+                    Text("\(Bundle.main.appVersion) (\(Bundle.main.appBuild))").foregroundStyle(.secondary).monospacedDigit()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                Divider().padding(.leading, 14)
+                NavigationLink { DiagnosticsView().settingsPage() } label: {
+                    HStack {
+                        Label("File Access Diagnostics", systemImage: "stethoscope").foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.985))
+            }
+            .settingsCard()
+            Button(role: .destructive) { confirmReset = true } label: {
+                Text("Reset All Settings").foregroundStyle(.red).frame(maxWidth: .infinity).padding(.vertical, 12)
+            }
+            .buttonStyle(PressableStyle(scale: 0.98))
+            .settingsCard()
+            Text("Your files, account, linked folders and extensions are kept.")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 10)
+        }
+    }
+
+    private func stat(_ value: String, _ label: String, _ symbol: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol).font(.footnote.weight(.semibold)).foregroundStyle(.tint)
+            Text(value).font(.title3.weight(.bold)).monospacedDigit().contentTransition(.numericText())
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .settingsCard()
+    }
+}
+
+// MARK: - Settings look
+
+/// Soft wash of the app's tint behind every settings screen.
+struct SettingsBackdrop: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color(uiColor: .systemGroupedBackground)
+            LinearGradient(colors: [Color.accentColor.opacity(0.22), Color.accentColor.opacity(0.05), .clear],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 380)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+extension View {
+    /// The panel style used on the settings home screen.
+    func settingsCard() -> some View {
+        background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+    }
+
+    /// Gives a settings sub-page the same backdrop as the home screen.
+    func settingsPage() -> some View {
+        scrollContentBackground(.hidden).background(SettingsBackdrop())
+    }
+}
+
+/// The account banner at the top of Settings.
+struct AccountHero: View {
+    @ObservedObject var account = AccountManager.shared
+    @State private var drift = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Avatar(url: account.profile?.avatarURL, size: 54)
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 2))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(account.profile.map { $0.name ?? $0.login } ?? "Sign in with GitHub")
+                    .font(.title3.weight(.bold)).lineLimit(1)
+                if let p = account.profile {
+                    HStack(spacing: 6) {
+                        chip(p.pro ? "PRO" : "Free", filled: p.pro)
+                        chip(String(format: "$%.2f AI credit", p.credits), filled: false)
+                    }
+                } else {
+                    Text("Clone your repos, sync and collaborate").font(.caption).opacity(0.9)
+                }
+            }
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.right").font(.footnote.weight(.bold)).opacity(0.8)
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.72)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Two soft lights that drift slowly, so the banner feels alive without being busy.
+                Circle().fill(Color.white.opacity(0.22)).frame(width: 150, height: 150).blur(radius: 40)
+                    .offset(x: drift ? 110 : 60, y: drift ? -40 : -10)
+                Circle().fill(Color.black.opacity(0.18)).frame(width: 170, height: 170).blur(radius: 50)
+                    .offset(x: drift ? -120 : -80, y: drift ? 50 : 30)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.accentColor.opacity(0.35), radius: 16, y: 8)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 6).repeatForever(autoreverses: true)) { drift = true }
+        }
+    }
+
+    private func chip(_ text: String, filled: Bool) -> some View {
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Color.white.opacity(filled ? 0.95 : 0.22), in: Capsule())
+            .foregroundStyle(filled ? Color.accentColor : Color.white)
     }
 }
 

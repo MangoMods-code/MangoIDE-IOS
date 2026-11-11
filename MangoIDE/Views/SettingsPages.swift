@@ -141,7 +141,7 @@ struct CreditView: View {
             PolicyLinks()
             Section {
                 LabeledContent("Agent uses", value: settings.agentAPIKey.isEmpty ? "AI credit" : "Your own key")
-                NavigationLink("Agent Settings") { AgentSettings() }
+                NavigationLink("Agent Settings") { AgentSettings().settingsPage() }
             } footer: {
                 Text("If you add your own Anthropic key in Agent settings, the agent uses that instead and your credit isn't touched.")
             }
@@ -219,7 +219,7 @@ struct SharingSettings: View {
                 Picker("Links Work For", selection: $settings.shareLinkDays) {
                     Text("1 Day").tag(1); Text("7 Days").tag(7); Text("30 Days").tag(30); Text("90 Days").tag(90); Text("1 Year").tag(365)
                 }
-                NavigationLink { SharedLinksView() } label: { Text("Your Shared Links") }
+                NavigationLink { SharedLinksView().settingsPage() } label: { Text("Your Shared Links") }
                     .disabled(!account.isSignedIn)
             } header: { Text("Share Links") } footer: {
                 Text("A share link is a snapshot copy. People who open it get their own copy; the agent's private notes (.mango) are never included.")

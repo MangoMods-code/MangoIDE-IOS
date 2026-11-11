@@ -71,10 +71,10 @@ struct AccountView: View {
                 }
 
                 Section {
-                    NavigationLink { ProView() } label: {
+                    NavigationLink { ProView().settingsPage() } label: {
                         LabeledContent("MangoIDE Pro", value: p.pro ? (p.proStatus == "owner pass" ? "Owner Pass" : "Active") : "Free")
                     }
-                    NavigationLink { CreditView() } label: {
+                    NavigationLink { CreditView().settingsPage() } label: {
                         LabeledContent("AI Credit", value: String(format: "$%.2f", p.credits))
                     }
                 } header: { Text("Plan") }
