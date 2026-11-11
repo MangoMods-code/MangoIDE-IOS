@@ -287,13 +287,14 @@ struct WelcomeView: View {
                     LazyVGrid(columns: columns, spacing: 10) {
                         ActionTile(symbol: "doc.badge.plus", title: "New File", color: .blue) { router.show(.newFile(workspace.scratchFolder)) }
                         ActionTile(symbol: "shippingbox.fill", title: "New Project", color: .orange) { router.show(.newProject) }
+                        ActionTile(symbol: "square.grid.2x2.fill", title: "Templates", color: .pink) { router.show(.templates) }
                         ActionTile(symbol: "doc.fill", title: "Open File…", color: .teal) { router.show(.openFile) }
                         ActionTile(symbol: "folder.fill", title: "Open Folder…", color: .indigo) { router.show(.linkFolder) }
                         ActionTile(symbol: "arrow.triangle.branch", title: "Clone from GitHub…", color: .black) { router.show(.github) }
                         ActionTile(symbol: "person.2.fill", title: "Join a Live Session…", color: .mint) { router.show(.collab) }
                         ActionTile(symbol: "square.and.arrow.down.fill", title: "Import Files…", color: .green) { router.show(.importFiles(nil)) }
                         ActionTile(symbol: "doc.zipper", title: "Import ZIP / RAR…", color: .brown) { router.show(.importArchive) }
-                        ActionTile(symbol: "square.grid.2x2.fill", title: workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…", color: .purple) {
+                        ActionTile(symbol: "folder.badge.gearshape", title: workspace.projectsRoot == nil ? "Choose Projects Folder…" : "Switch Project…", color: .purple) {
                             router.show(workspace.projectsRoot == nil ? .pickProjectsFolder : .projects)
                         }
                     }

@@ -1,0 +1,629 @@
+[
+ {
+  "id": "python/hello-you",
+  "name": "Hello, You",
+  "category": "Starter",
+  "icon": "hand.wave.fill",
+  "summary": "Ask for a name and greet it. The classic first program.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Ask for a name and say hello. Tap ▶ and type in the console.\"\"\"\n\n\ndef main():\n    name = input(\"What's your name? \").strip() or \"friend\"\n    print(f\"Hello, {name}! Welcome to Python.\")\n    print(f\"Your name has {len(name)} letters and backwards it's {name[::-1]}.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/calculator",
+  "name": "Calculator",
+  "category": "Starter",
+  "icon": "plusminus.circle.fill",
+  "summary": "Type sums like 3 * (4 + 5) and get the answer, safely.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A calculator that understands + - * / ** % and brackets, without using eval().\"\"\"\nimport ast\nimport operator\n\nOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,\n       ast.Pow: operator.pow, ast.Mod: operator.mod, ast.FloorDiv: operator.floordiv,\n       ast.USub: operator.neg, ast.UAdd: operator.pos}\n\n\ndef evaluate(node):\n    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):\n        return node.value\n    if isinstance(node, ast.BinOp) and type(node.op) in OPS:\n        return OPS[type(node.op)](evaluate(node.left), evaluate(node.right))\n    if isinstance(node, ast.UnaryOp) and type(node.op) in OPS:\n        return OPS[type(node.op)](evaluate(node.operand))\n    raise ValueError(\"I only understand numbers and + - * / ** % ( )\")\n\n\ndef calculate(text):\n    return evaluate(ast.parse(text, mode=\"eval\").body)\n\n\ndef main():\n    print(\"Calculator. Type a sum, or 'q' to quit.\")\n    while True:\n        text = input(\"> \").strip()\n        if text.lower() in (\"q\", \"quit\", \"exit\"):\n            break\n        if not text:\n            continue\n        try:\n            print(\"=\", calculate(text))\n        except ZeroDivisionError:\n            print(\"Can't divide by zero.\")\n        except (ValueError, SyntaxError) as e:\n            print(\"Hmm:\", e)\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/temperature",
+  "name": "Temperature Converter",
+  "category": "Starter",
+  "icon": "thermometer.medium",
+  "summary": "Convert between Celsius, Fahrenheit and Kelvin.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Convert a temperature between Celsius, Fahrenheit and Kelvin.\"\"\"\n\n\ndef to_celsius(value, unit):\n    return {\"c\": value, \"f\": (value - 32) * 5 / 9, \"k\": value - 273.15}[unit]\n\n\ndef from_celsius(c):\n    return {\"C\": c, \"F\": c * 9 / 5 + 32, \"K\": c + 273.15}\n\n\ndef main():\n    print(\"Type a temperature like 72f, 21c or 300k (q to quit).\")\n    while True:\n        text = input(\"> \").strip().lower()\n        if text in (\"q\", \"\"):\n            break\n        try:\n            value, unit = float(text[:-1]), text[-1]\n            results = from_celsius(to_celsius(value, unit))\n        except (ValueError, KeyError):\n            print(\"Use a number followed by c, f or k.\")\n            continue\n        print(\"  \".join(f\"{v:.1f}°{u}\" for u, v in results.items()))\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/tip-splitter",
+  "name": "Tip & Bill Splitter",
+  "category": "Starter",
+  "icon": "dollarsign.circle.fill",
+  "summary": "Work out the tip and what each person owes.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Split a bill between friends, tip included.\"\"\"\n\n\ndef ask_number(prompt, default):\n    text = input(f\"{prompt} [{default}]: \").strip()\n    return float(text) if text else default\n\n\ndef main():\n    bill = ask_number(\"Bill total\", 50.0)\n    tip_percent = ask_number(\"Tip %\", 18.0)\n    people = max(1, int(ask_number(\"How many people\", 2)))\n    tip = bill * tip_percent / 100\n    total = bill + tip\n    print(f\"\\nTip:        ${tip:,.2f}\")\n    print(f\"Total:      ${total:,.2f}\")\n    print(f\"Per person: ${total / people:,.2f}\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt, ValueError):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/countdown",
+  "name": "Countdown Timer",
+  "category": "Starter",
+  "icon": "timer",
+  "summary": "A ticking countdown with a progress bar.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Count down from a number of seconds with a progress bar.\"\"\"\nimport time\n\n\ndef bar(done, total, width=20):\n    filled = round(width * done / total)\n    return \"█\" * filled + \"░\" * (width - filled)\n\n\ndef countdown(seconds, tick=1.0):\n    for left in range(seconds, 0, -1):\n        print(f\"{bar(seconds - left, seconds)} {left:>3}s left\")\n        time.sleep(tick)\n    print(f\"{bar(1, 1)} Time's up! ⏰\")\n\n\ndef main():\n    text = input(\"Seconds to count down [5]: \").strip()\n    countdown(int(text) if text.isdigit() else 5)\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        countdown(3, tick=0.2)\n"
+  }
+ },
+ {
+  "id": "python/guess-number",
+  "name": "Guess the Number",
+  "category": "Games",
+  "icon": "questionmark.circle.fill",
+  "summary": "The computer picks a number; you get hints until you find it.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Guess the secret number between 1 and 100.\"\"\"\nimport random\n\n\ndef main():\n    secret = random.randint(1, 100)\n    print(\"I'm thinking of a number from 1 to 100.\")\n    tries = 0\n    while True:\n        text = input(\"Your guess: \").strip()\n        if not text.isdigit():\n            print(\"Type a whole number.\")\n            continue\n        tries += 1\n        guess = int(text)\n        if guess < secret:\n            print(\"Higher ⬆️\")\n        elif guess > secret:\n            print(\"Lower ⬇️\")\n        else:\n            print(f\"Got it in {tries} tries! 🎉\")\n            break\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/rock-paper-scissors",
+  "name": "Rock Paper Scissors",
+  "category": "Games",
+  "icon": "scissors",
+  "summary": "Best of five against the computer.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Rock, paper, scissors: first to 3 wins.\"\"\"\nimport random\n\nBEATS = {\"rock\": \"scissors\", \"paper\": \"rock\", \"scissors\": \"paper\"}\nSHORT = {\"r\": \"rock\", \"p\": \"paper\", \"s\": \"scissors\"}\n\n\ndef main():\n    you = cpu = 0\n    while you < 3 and cpu < 3:\n        pick = SHORT.get(input(\"rock, paper or scissors (r/p/s)? \").strip().lower()[:1])\n        if not pick:\n            print(\"Type r, p or s.\")\n            continue\n        other = random.choice(list(BEATS))\n        if pick == other:\n            result = \"Draw.\"\n        elif BEATS[pick] == other:\n            you += 1\n            result = \"You win the round!\"\n        else:\n            cpu += 1\n            result = \"Computer wins the round.\"\n        print(f\"You: {pick}  Computer: {other}  →  {result}  [{you}-{cpu}]\")\n    print(\"🏆 You won the match!\" if you > cpu else \"Computer takes the match.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/hangman",
+  "name": "Hangman",
+  "category": "Games",
+  "icon": "figure.stand",
+  "summary": "Guess the word one letter at a time before you run out of lives.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Hangman with a small word list. Add your own words to WORDS.\"\"\"\nimport random\n\nWORDS = [\"python\", \"mango\", \"keyboard\", \"function\", \"variable\", \"galaxy\", \"puzzle\", \"rhythm\", \"island\", \"rocket\"]\n\n\ndef show(word, guessed):\n    return \" \".join(c if c in guessed else \"_\" for c in word)\n\n\ndef main():\n    word = random.choice(WORDS)\n    guessed, lives = set(), 6\n    while lives and not set(word) <= guessed:\n        print(f\"\\n{show(word, guessed)}   lives: {'♥' * lives}   tried: {' '.join(sorted(guessed))}\")\n        letter = input(\"Letter: \").strip().lower()\n        if len(letter) != 1 or not letter.isalpha():\n            print(\"One letter, please.\")\n        elif letter in guessed:\n            print(\"You tried that already.\")\n        else:\n            guessed.add(letter)\n            if letter not in word:\n                lives -= 1\n                print(\"Nope.\")\n    print(f\"\\nYou got it: {word}! 🎉\" if lives else f\"\\nOut of lives. The word was {word}.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/tic-tac-toe",
+  "name": "Tic-Tac-Toe",
+  "category": "Games",
+  "icon": "number.square.fill",
+  "summary": "Play noughts and crosses against a computer that never loses.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Tic-tac-toe against an unbeatable computer (minimax).\"\"\"\n\nLINES = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]\n\n\ndef winner(b):\n    for x, y, z in LINES:\n        if b[x] != \" \" and b[x] == b[y] == b[z]:\n            return b[x]\n    return \"draw\" if \" \" not in b else None\n\n\ndef minimax(b, player):\n    w = winner(b)\n    if w:\n        return {\"O\": 1, \"X\": -1, \"draw\": 0}[w], None\n    best = (-2, None) if player == \"O\" else (2, None)\n    for i in range(9):\n        if b[i] == \" \":\n            b[i] = player\n            score, _ = minimax(b, \"X\" if player == \"O\" else \"O\")\n            b[i] = \" \"\n            if (player == \"O\" and score > best[0]) or (player == \"X\" and score < best[0]):\n                best = (score, i)\n    return best\n\n\ndef draw(b):\n    rows = [\" | \".join(b[r * 3 + c] if b[r * 3 + c] != \" \" else str(r * 3 + c + 1) for c in range(3)) for r in range(3)]\n    print(\"\\n\" + \"\\n---------\\n\".join(rows) + \"\\n\")\n\n\ndef main():\n    board = [\" \"] * 9\n    while not winner(board):\n        draw(board)\n        text = input(\"Your move (1-9): \").strip()\n        if not text.isdigit() or not 1 <= int(text) <= 9 or board[int(text) - 1] != \" \":\n            print(\"Pick an empty square.\")\n            continue\n        board[int(text) - 1] = \"X\"\n        if not winner(board):\n            board[minimax(board, \"O\")[1]] = \"O\"\n    draw(board)\n    print({\"X\": \"You win?! That shouldn't happen.\", \"O\": \"Computer wins.\", \"draw\": \"It's a draw.\"}[winner(board)])\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/blackjack",
+  "name": "Blackjack",
+  "category": "Games",
+  "icon": "suit.spade.fill",
+  "summary": "Hit or stand against the dealer and try to reach 21.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Blackjack: get closer to 21 than the dealer without going over.\"\"\"\nimport random\n\nRANKS = [\"A\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"J\", \"Q\", \"K\"]\nSUITS = \"♠♥♦♣\"\n\n\ndef new_deck():\n    deck = [r + s for r in RANKS for s in SUITS]\n    random.shuffle(deck)\n    return deck\n\n\ndef value(hand):\n    total = sum(11 if c[:-1] == \"A\" else 10 if c[:-1] in \"JQK\" else int(c[:-1]) for c in hand)\n    aces = sum(c[:-1] == \"A\" for c in hand)\n    while total > 21 and aces:\n        total, aces = total - 10, aces - 1\n    return total\n\n\ndef main():\n    deck = new_deck()\n    player, dealer = [deck.pop(), deck.pop()], [deck.pop(), deck.pop()]\n    while value(player) < 21:\n        print(f\"Dealer shows {dealer[0]}.  You: {' '.join(player)} ({value(player)})\")\n        if input(\"Hit or stand (h/s)? \").strip().lower().startswith(\"h\"):\n            player.append(deck.pop())\n        else:\n            break\n    while value(dealer) < 17 and value(player) <= 21:\n        dealer.append(deck.pop())\n    p, d = value(player), value(dealer)\n    print(f\"\\nYou:    {' '.join(player)} ({p})\\nDealer: {' '.join(dealer)} ({d})\")\n    if p > 21:\n        print(\"Bust! Dealer wins.\")\n    elif d > 21 or p > d:\n        print(\"You win! 🎉\")\n    elif p == d:\n        print(\"Push (a tie).\")\n    else:\n        print(\"Dealer wins.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/dice-roller",
+  "name": "Dice Roller",
+  "category": "Games",
+  "icon": "dice.fill",
+  "summary": "Roll any dice, tabletop style: 2d6, d20+5, 4d8-1.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Roll dice written the tabletop way: 2d6, d20+5, 4d8-1.\"\"\"\nimport random\nimport re\n\nPATTERN = re.compile(r\"^(\\d*)d(\\d+)([+-]\\d+)?$\")\n\n\ndef roll(text):\n    m = PATTERN.match(text.replace(\" \", \"\").lower())\n    if not m:\n        raise ValueError(\"Write dice like 2d6 or d20+5.\")\n    count, sides, bonus = int(m.group(1) or 1), int(m.group(2)), int(m.group(3) or 0)\n    if not (1 <= count <= 100 and 2 <= sides <= 1000):\n        raise ValueError(\"Use 1-100 dice with 2-1000 sides.\")\n    rolls = [random.randint(1, sides) for _ in range(count)]\n    return rolls, sum(rolls) + bonus\n\n\ndef main():\n    print(\"Roll dice (like 2d6 or d20+5). q to quit.\")\n    for example in (\"2d6\", \"d20+5\"):\n        rolls, total = roll(example)\n        print(f\"{example}: {rolls} = {total}\")\n    while True:\n        text = input(\"> \").strip()\n        if text.lower() in (\"q\", \"\"):\n            break\n        try:\n            rolls, total = roll(text)\n            print(f\"{rolls} = {total}\")\n        except ValueError as e:\n            print(e)\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/text-adventure",
+  "name": "Text Adventure",
+  "category": "Games",
+  "icon": "map.fill",
+  "summary": "Explore rooms, pick up items and find the way out.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A tiny text adventure. Rooms are just a dictionary: add your own!\"\"\"\n\nROOMS = {\n    \"hall\": {\"text\": \"A dusty hall. Doors lead north and east.\", \"north\": \"library\", \"east\": \"kitchen\"},\n    \"library\": {\"text\": \"Shelves of old books. A brass key glints on a desk.\", \"south\": \"hall\", \"item\": \"key\"},\n    \"kitchen\": {\"text\": \"A cold kitchen. A locked door leads north.\", \"west\": \"hall\", \"north\": \"garden\", \"locked\": \"north\"},\n    \"garden\": {\"text\": \"Sunlight! You made it outside. 🌳\", \"end\": True},\n}\n\n\ndef main():\n    room, bag = \"hall\", set()\n    print(\"Commands: north/south/east/west, take, bag, quit\")\n    while True:\n        here = ROOMS[room]\n        print(\"\\n\" + here[\"text\"])\n        if here.get(\"end\"):\n            break\n        cmd = input(\"> \").strip().lower()\n        if cmd in (\"quit\", \"q\"):\n            break\n        elif cmd == \"bag\":\n            print(\"You carry:\", \", \".join(bag) or \"nothing\")\n        elif cmd == \"take\":\n            if here.get(\"item\"):\n                bag.add(here.pop(\"item\"))\n                print(\"Taken.\")\n            else:\n                print(\"Nothing to take here.\")\n        elif cmd in here and cmd in (\"north\", \"south\", \"east\", \"west\"):\n            if here.get(\"locked\") == cmd and \"key\" not in bag:\n                print(\"The door is locked.\")\n            else:\n                room = here[cmd]\n        else:\n            print(\"You can't do that here.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/wordle",
+  "name": "Word Guess (Wordle-style)",
+  "category": "Games",
+  "icon": "square.grid.3x3.fill",
+  "summary": "Six tries to find a five-letter word, with color hints.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Guess the five-letter word. 🟩 right spot, 🟨 wrong spot, ⬛ not in the word.\"\"\"\nimport random\n\nWORDS = [\"apple\", \"brick\", \"crane\", \"drive\", \"eagle\", \"flame\", \"grape\", \"house\", \"juice\", \"knife\",\n         \"lemon\", \"mango\", \"night\", \"ocean\", \"piano\", \"queen\", \"river\", \"stone\", \"tiger\", \"water\"]\n\n\ndef score(guess, answer):\n    marks, left = [\"⬛\"] * 5, list(answer)\n    for i, c in enumerate(guess):\n        if c == answer[i]:\n            marks[i] = \"🟩\"\n            left.remove(c)\n    for i, c in enumerate(guess):\n        if marks[i] == \"⬛\" and c in left:\n            marks[i] = \"🟨\"\n            left.remove(c)\n    return \"\".join(marks)\n\n\ndef main():\n    answer = random.choice(WORDS)\n    for turn in range(1, 7):\n        guess = input(f\"Guess {turn}/6: \").strip().lower()\n        while len(guess) != 5 or not guess.isalpha():\n            guess = input(\"Five letters, please: \").strip().lower()\n        print(score(guess, answer), guess.upper())\n        if guess == answer:\n            print(\"You got it! 🎉\")\n            return\n    print(\"The word was\", answer.upper())\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/minesweeper",
+  "name": "Minesweeper",
+  "category": "Games",
+  "icon": "burst.fill",
+  "summary": "Uncover the grid without hitting a mine.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Console minesweeper on a small grid. Type a row and column, like: 2 3\"\"\"\nimport random\n\nSIZE, MINES = 6, 6\n\n\ndef neighbours(r, c):\n    return [(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)\n            if (dr or dc) and 0 <= r + dr < SIZE and 0 <= c + dc < SIZE]\n\n\ndef reveal(r, c, mines, shown):\n    if (r, c) in shown:\n        return\n    shown.add((r, c))\n    if not any(n in mines for n in neighbours(r, c)):\n        for n in neighbours(r, c):\n            reveal(*n, mines, shown)\n\n\ndef draw(mines, shown, show_all=False):\n    print(\"\\n   \" + \" \".join(str(c + 1) for c in range(SIZE)))\n    for r in range(SIZE):\n        cells = []\n        for c in range(SIZE):\n            if (r, c) in mines and show_all:\n                cells.append(\"*\")\n            elif (r, c) in shown:\n                cells.append(str(sum(n in mines for n in neighbours(r, c)) or \"·\"))\n            else:\n                cells.append(\"#\")\n        print(f\"{r + 1}  \" + \" \".join(cells))\n\n\ndef main():\n    cells = [(r, c) for r in range(SIZE) for c in range(SIZE)]\n    mines, shown = set(random.sample(cells, MINES)), set()\n    while len(shown) < SIZE * SIZE - MINES:\n        draw(mines, shown)\n        parts = input(\"Row and column: \").split()\n        if len(parts) != 2 or not all(p.isdigit() and 1 <= int(p) <= SIZE for p in parts):\n            print(f\"Type two numbers from 1 to {SIZE}.\")\n            continue\n        spot = (int(parts[0]) - 1, int(parts[1]) - 1)\n        if spot in mines:\n            draw(mines, shown, show_all=True)\n            print(\"💥 Boom!\")\n            return\n        reveal(*spot, mines, shown)\n    draw(mines, shown, show_all=True)\n    print(\"You cleared the field! 🎉\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/quiz",
+  "name": "Quiz Game",
+  "category": "Games",
+  "icon": "lightbulb.fill",
+  "summary": "A multiple-choice quiz that keeps score. Add your own questions.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Multiple-choice quiz. Add questions to QUESTIONS: (question, choices, index of the right one).\"\"\"\nimport random\n\nQUESTIONS = [\n    (\"Which keyword makes a function in Python?\", [\"func\", \"def\", \"function\", \"fn\"], 1),\n    (\"What does len('mango') return?\", [\"4\", \"5\", \"6\", \"an error\"], 1),\n    (\"Which of these is a list?\", [\"(1, 2)\", \"{1, 2}\", \"[1, 2]\", \"'1, 2'\"], 2),\n    (\"What is 7 // 2?\", [\"3.5\", \"3\", \"4\", \"1\"], 1),\n    (\"How do you start a comment?\", [\"//\", \"--\", \"#\", \"/*\"], 2),\n]\n\n\ndef main():\n    score = 0\n    questions = random.sample(QUESTIONS, len(QUESTIONS))\n    for n, (question, choices, right) in enumerate(questions, 1):\n        print(f\"\\n{n}. {question}\")\n        for i, choice in enumerate(choices):\n            print(f\"   {'abcd'[i]}) {choice}\")\n        answer = input(\"Answer: \").strip().lower()[:1]\n        if answer == \"abcd\"[right]:\n            score += 1\n            print(\"Correct ✅\")\n        else:\n            print(f\"Not quite. It's {'abcd'[right]}) {choices[right]}\")\n    print(f\"\\nYou scored {score}/{len(questions)}.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/todo-list",
+  "name": "To-Do List",
+  "category": "Tools",
+  "icon": "checklist",
+  "summary": "Add, tick off and remove tasks. Saved to a file between runs.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A to-do list saved in todos.json next to this file.\"\"\"\nimport json\nfrom pathlib import Path\n\nFILE = Path(__file__).with_name(\"todos.json\")\n\n\ndef load():\n    return json.loads(FILE.read_text()) if FILE.exists() else []\n\n\ndef save(todos):\n    FILE.write_text(json.dumps(todos, indent=2))\n\n\ndef show(todos):\n    print()\n    if not todos:\n        print(\"Nothing to do. 🎉\")\n    for i, t in enumerate(todos, 1):\n        print(f\"{i:>2}. [{'x' if t['done'] else ' '}] {t['text']}\")\n\n\ndef main():\n    todos = load()\n    print(\"Commands: add <task>, done <number>, remove <number>, quit\")\n    while True:\n        show(todos)\n        cmd, _, rest = input(\"> \").strip().partition(\" \")\n        if cmd in (\"quit\", \"q\", \"\"):\n            break\n        if cmd == \"add\" and rest:\n            todos.append({\"text\": rest, \"done\": False})\n        elif cmd in (\"done\", \"remove\") and rest.isdigit() and 1 <= int(rest) <= len(todos):\n            if cmd == \"done\":\n                todos[int(rest) - 1][\"done\"] = True\n            else:\n                todos.pop(int(rest) - 1)\n        else:\n            print(\"Try: add Buy milk\")\n            continue\n        save(todos)\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/password-generator",
+  "name": "Password Generator",
+  "category": "Tools",
+  "icon": "key.fill",
+  "summary": "Make strong random passwords and passphrases.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Generate strong passwords using Python's secure random source.\"\"\"\nimport secrets\nimport string\n\nWORDS = [\"mango\", \"river\", \"cloud\", \"tiger\", \"piano\", \"lemon\", \"rocket\", \"forest\", \"ember\", \"comet\", \"maple\", \"otter\"]\n\n\ndef password(length=16, symbols=True):\n    alphabet = string.ascii_letters + string.digits + (\"!@#$%^&*-_\" if symbols else \"\")\n    while True:\n        pw = \"\".join(secrets.choice(alphabet) for _ in range(length))\n        if any(c.islower() for c in pw) and any(c.isupper() for c in pw) and any(c.isdigit() for c in pw):\n            return pw\n\n\ndef passphrase(words=4):\n    return \"-\".join(secrets.choice(WORDS) for _ in range(words)) + str(secrets.randbelow(90) + 10)\n\n\ndef main():\n    print(\"Three passwords:\")\n    for _ in range(3):\n        print(\"  \", password())\n    print(\"Three passphrases (easier to remember):\")\n    for _ in range(3):\n        print(\"  \", passphrase())\n    text = input(\"\\nLength for a custom one [20]: \").strip()\n    print(password(int(text) if text.isdigit() and 6 <= int(text) <= 128 else 20))\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/unit-converter",
+  "name": "Unit Converter",
+  "category": "Tools",
+  "icon": "ruler.fill",
+  "summary": "Convert lengths, weights and volumes: 5 km to mi.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Convert units by going through a base unit. Add more to UNITS.\"\"\"\n\nUNITS = {\n    \"length\": {\"mm\": 0.001, \"cm\": 0.01, \"m\": 1, \"km\": 1000, \"in\": 0.0254, \"ft\": 0.3048, \"yd\": 0.9144, \"mi\": 1609.344},\n    \"weight\": {\"g\": 1, \"kg\": 1000, \"oz\": 28.3495, \"lb\": 453.592},\n    \"volume\": {\"ml\": 1, \"l\": 1000, \"cup\": 236.588, \"gal\": 3785.41},\n}\n\n\ndef convert(value, src, dst):\n    for table in UNITS.values():\n        if src in table and dst in table:\n            return value * table[src] / table[dst]\n    raise ValueError(f\"Can't convert {src} to {dst}.\")\n\n\ndef main():\n    print(\"Try: 5 km to mi   (q to quit)\")\n    print(\"Units:\", \", \".join(u for t in UNITS.values() for u in t))\n    while True:\n        parts = input(\"> \").lower().split()\n        if not parts or parts[0] == \"q\":\n            break\n        try:\n            value, src, dst = float(parts[0]), parts[1], parts[-1]\n            print(f\"{value:g} {src} = {convert(value, src, dst):.4g} {dst}\")\n        except (ValueError, IndexError) as e:\n            print(e if isinstance(e, ValueError) and \"convert\" in str(e) else \"Write it like: 5 km to mi\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/expense-tracker",
+  "name": "Expense Tracker",
+  "category": "Tools",
+  "icon": "creditcard.fill",
+  "summary": "Log spending by category and see where the money goes.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Track expenses in expenses.csv and total them by category.\"\"\"\nimport csv\nfrom collections import defaultdict\nfrom datetime import date\nfrom pathlib import Path\n\nFILE = Path(__file__).with_name(\"expenses.csv\")\n\n\ndef load():\n    if not FILE.exists():\n        return []\n    with FILE.open(newline=\"\") as f:\n        return [(r[\"date\"], r[\"category\"], float(r[\"amount\"]), r[\"note\"]) for r in csv.DictReader(f)]\n\n\ndef add(category, amount, note=\"\"):\n    new = not FILE.exists()\n    with FILE.open(\"a\", newline=\"\") as f:\n        w = csv.writer(f)\n        if new:\n            w.writerow([\"date\", \"category\", \"amount\", \"note\"])\n        w.writerow([date.today().isoformat(), category, f\"{amount:.2f}\", note])\n\n\ndef report(rows):\n    totals = defaultdict(float)\n    for _, category, amount, _ in rows:\n        totals[category] += amount\n    biggest = max(totals.values(), default=1)\n    for category, amount in sorted(totals.items(), key=lambda kv: -kv[1]):\n        print(f\"{category:<12} ${amount:>8.2f} {'█' * round(20 * amount / biggest)}\")\n    print(f\"{'TOTAL':<12} ${sum(totals.values()):>8.2f}\")\n\n\ndef main():\n    if not load():\n        for sample in ((\"food\", 12.5, \"lunch\"), (\"transport\", 2.75, \"bus\"), (\"food\", 30, \"groceries\")):\n            add(*sample)\n    print(\"Commands: add <category> <amount> [note], report, quit\")\n    report(load())\n    while True:\n        parts = input(\"> \").split(maxsplit=3)\n        if not parts or parts[0] in (\"q\", \"quit\"):\n            break\n        if parts[0] == \"add\" and len(parts) >= 3:\n            try:\n                add(parts[1], float(parts[2]), parts[3] if len(parts) > 3 else \"\")\n                print(\"Added.\")\n            except ValueError:\n                print(\"The amount should be a number.\")\n        elif parts[0] == \"report\":\n            report(load())\n        else:\n            print(\"Try: add food 8.50 coffee\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/contact-book",
+  "name": "Contact Book",
+  "category": "Tools",
+  "icon": "person.crop.rectangle.stack.fill",
+  "summary": "Save, search and delete contacts in a JSON file.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A contact book stored in contacts.json.\"\"\"\nimport json\nfrom pathlib import Path\n\nFILE = Path(__file__).with_name(\"contacts.json\")\n\n\ndef load():\n    return json.loads(FILE.read_text()) if FILE.exists() else {}\n\n\ndef main():\n    contacts = load()\n    print(\"Commands: add <name> <phone>, find <text>, delete <name>, list, quit\")\n    while True:\n        parts = input(\"> \").split()\n        if not parts or parts[0] in (\"q\", \"quit\"):\n            break\n        cmd, args = parts[0], parts[1:]\n        if cmd == \"add\" and len(args) >= 2:\n            contacts[\" \".join(args[:-1])] = args[-1]\n        elif cmd == \"delete\" and args:\n            if contacts.pop(\" \".join(args), None) is None:\n                print(\"No contact with that name.\")\n        elif cmd in (\"list\", \"find\"):\n            needle = \" \".join(args).lower()\n            matches = {n: p for n, p in sorted(contacts.items()) if needle in n.lower() or needle in p}\n            for name, phone in matches.items():\n                print(f\"{name:<20} {phone}\")\n            print(f\"{len(matches)} contact(s)\")\n            continue\n        else:\n            print(\"Try: add Ada Lovelace 555-0100\")\n            continue\n        FILE.write_text(json.dumps(contacts, indent=2))\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/text-stats",
+  "name": "Text Analyzer",
+  "category": "Tools",
+  "icon": "text.magnifyingglass",
+  "summary": "Count words, sentences and the most common words in any text.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Paste some text and get word counts, reading time and the most common words.\"\"\"\nimport re\nfrom collections import Counter\n\nSAMPLE = \"\"\"Python is a programming language that lets you work quickly.\nIt is easy to read, easy to learn, and powerful enough for real projects.\nMany people learn Python first because the code reads almost like English.\"\"\"\n\nCOMMON = {\"the\", \"a\", \"an\", \"and\", \"is\", \"it\", \"to\", \"of\", \"for\", \"that\", \"you\", \"in\", \"on\", \"like\"}\n\n\ndef analyze(text):\n    words = re.findall(r\"[A-Za-z']+\", text.lower())\n    sentences = [s for s in re.split(r\"[.!?]+\", text) if s.strip()]\n    return {\n        \"characters\": len(text),\n        \"words\": len(words),\n        \"sentences\": len(sentences),\n        \"avg word length\": round(sum(map(len, words)) / max(1, len(words)), 1),\n        \"reading time (s)\": round(len(words) / 200 * 60),\n        \"top words\": Counter(w for w in words if w not in COMMON).most_common(5),\n    }\n\n\ndef main():\n    print(\"Paste text and press return on an empty line (or just press return for a sample).\")\n    lines = []\n    while True:\n        line = input()\n        if not line:\n            break\n        lines.append(line)\n    for key, value in analyze(\"\\n\".join(lines) or SAMPLE).items():\n        print(f\"{key:<18} {value}\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        for key, value in analyze(SAMPLE).items():\n            print(f\"{key:<18} {value}\")\n"
+  }
+ },
+ {
+  "id": "python/caesar-cipher",
+  "name": "Secret Code (Caesar Cipher)",
+  "category": "Tools",
+  "icon": "lock.rotation",
+  "summary": "Scramble and unscramble messages by shifting letters.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Encode and decode messages with a Caesar cipher, and crack one without the key.\"\"\"\nimport string\n\n\ndef shift(text, key):\n    out = []\n    for ch in text:\n        if ch.isalpha():\n            base = ord(\"A\") if ch.isupper() else ord(\"a\")\n            out.append(chr((ord(ch) - base + key) % 26 + base))\n        else:\n            out.append(ch)\n    return \"\".join(out)\n\n\ndef crack(secret):\n    \"\"\"Try all 26 keys and pick the one that looks most like English.\"\"\"\n    common = \"etaoinshr\"\n    return max(range(26), key=lambda k: sum(shift(secret, -k).lower().count(c) for c in common))\n\n\ndef main():\n    message = input(\"Message [Meet me at the mango tree]: \").strip() or \"Meet me at the mango tree\"\n    key_text = input(\"Shift 1-25 [3]: \").strip()\n    key = int(key_text) % 26 if key_text.isdigit() else 3\n    secret = shift(message, key)\n    print(\"Encoded:\", secret)\n    print(\"Decoded:\", shift(secret, -key))\n    print(\"Cracked key without being told:\", crack(secret))\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\n\" + shift(\"Meet me at the mango tree\", 3))\n"
+  }
+ },
+ {
+  "id": "python/ascii-banner",
+  "name": "Big Text Banner",
+  "category": "Tools",
+  "icon": "textformat.size",
+  "summary": "Print any word in giant block letters.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Print text in big 5-line block letters.\"\"\"\n\nFONT = {\n    \"A\": [\" ██ \", \"█  █\", \"████\", \"█  █\", \"█  █\"], \"B\": [\"███ \", \"█  █\", \"███ \", \"█  █\", \"███ \"],\n    \"C\": [\" ███\", \"█   \", \"█   \", \"█   \", \" ███\"], \"D\": [\"███ \", \"█  █\", \"█  █\", \"█  █\", \"███ \"],\n    \"E\": [\"████\", \"█   \", \"███ \", \"█   \", \"████\"], \"F\": [\"████\", \"█   \", \"███ \", \"█   \", \"█   \"],\n    \"G\": [\" ███\", \"█   \", \"█ ██\", \"█  █\", \" ███\"], \"H\": [\"█  █\", \"█  █\", \"████\", \"█  █\", \"█  █\"],\n    \"I\": [\"███\", \" █ \", \" █ \", \" █ \", \"███\"], \"J\": [\"  ██\", \"   █\", \"   █\", \"█  █\", \" ██ \"],\n    \"K\": [\"█  █\", \"█ █ \", \"██  \", \"█ █ \", \"█  █\"], \"L\": [\"█   \", \"█   \", \"█   \", \"█   \", \"████\"],\n    \"M\": [\"█   █\", \"██ ██\", \"█ █ █\", \"█   █\", \"█   █\"], \"N\": [\"█  █\", \"██ █\", \"█ ██\", \"█  █\", \"█  █\"],\n    \"O\": [\" ██ \", \"█  █\", \"█  █\", \"█  █\", \" ██ \"], \"P\": [\"███ \", \"█  █\", \"███ \", \"█   \", \"█   \"],\n    \"Q\": [\" ██ \", \"█  █\", \"█  █\", \"█ ██\", \" ███\"], \"R\": [\"███ \", \"█  █\", \"███ \", \"█ █ \", \"█  █\"],\n    \"S\": [\" ███\", \"█   \", \" ██ \", \"   █\", \"███ \"], \"T\": [\"█████\", \"  █  \", \"  █  \", \"  █  \", \"  █  \"],\n    \"U\": [\"█  █\", \"█  █\", \"█  █\", \"█  █\", \" ██ \"], \"V\": [\"█   █\", \"█   █\", \"█   █\", \" █ █ \", \"  █  \"],\n    \"W\": [\"█   █\", \"█   █\", \"█ █ █\", \"██ ██\", \"█   █\"], \"X\": [\"█   █\", \" █ █ \", \"  █  \", \" █ █ \", \"█   █\"],\n    \"Y\": [\"█   █\", \" █ █ \", \"  █  \", \"  █  \", \"  █  \"], \"Z\": [\"████\", \"  █ \", \" █  \", \"█   \", \"████\"],\n    \" \": [\"  \", \"  \", \"  \", \"  \", \"  \"], \"!\": [\"█\", \"█\", \"█\", \" \", \"█\"],\n}\n\n\ndef banner(text):\n    letters = [FONT.get(ch, FONT[\" \"]) for ch in text.upper()]\n    return \"\\n\".join(\"  \".join(letter[row] for letter in letters) for row in range(5))\n\n\ndef main():\n    print(banner(input(\"Text [MANGO]: \").strip() or \"MANGO\"))\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(banner(\"MANGO\"))\n"
+  }
+ },
+ {
+  "id": "python/pomodoro",
+  "name": "Focus Timer (Pomodoro)",
+  "category": "Tools",
+  "icon": "hourglass",
+  "summary": "Work and break rounds with a live progress bar.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A focus timer: work rounds and breaks. Minutes are shortened to seconds so you can try it fast.\"\"\"\nimport time\n\nSPEED = 60  # 60 = a \"minute\" lasts one second. Set to 1 for real minutes.\n\n\ndef run(label, minutes):\n    total = max(1, round(minutes * 60 / SPEED))\n    for done in range(total + 1):\n        width = 24\n        filled = round(width * done / total)\n        print(f\"{label:<6} {'█' * filled}{'░' * (width - filled)} {done * 100 // total:>3}%\")\n        if done < total:\n            time.sleep(1)\n\n\ndef main():\n    rounds_text = input(\"How many rounds [2]: \").strip()\n    rounds = int(rounds_text) if rounds_text.isdigit() else 2\n    for n in range(1, rounds + 1):\n        print(f\"\\nRound {n}/{rounds}\")\n        run(\"Focus\", 5)\n        if n < rounds:\n            run(\"Break\", 2)\n    print(\"\\nDone. Nice work! ✅\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        run(\"Focus\", 3)\n"
+  }
+ },
+ {
+  "id": "python/csv-report",
+  "name": "CSV Sales Report",
+  "category": "Data",
+  "icon": "tablecells.fill",
+  "summary": "Read a CSV file and print totals, averages and the best seller.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Read sales.csv and summarize it. Edit sales.csv and run again.\"\"\"\nimport csv\nfrom collections import defaultdict\nfrom pathlib import Path\n\nFILE = Path(__file__).with_name(\"sales.csv\")\n\n\ndef load():\n    with FILE.open(newline=\"\") as f:\n        return [{**row, \"units\": int(row[\"units\"]), \"price\": float(row[\"price\"])} for row in csv.DictReader(f)]\n\n\ndef main():\n    rows = load()\n    by_product, by_month = defaultdict(float), defaultdict(float)\n    for r in rows:\n        revenue = r[\"units\"] * r[\"price\"]\n        by_product[r[\"product\"]] += revenue\n        by_month[r[\"month\"]] += revenue\n    total = sum(by_product.values())\n    print(f\"{len(rows)} sales, ${total:,.2f} total, ${total / len(rows):,.2f} average\\n\")\n    print(\"By product:\")\n    for product, revenue in sorted(by_product.items(), key=lambda kv: -kv[1]):\n        print(f\"  {product:<10} ${revenue:>9,.2f}  {revenue / total:>5.1%}\")\n    print(\"\\nBy month:\")\n    top = max(by_month.values())\n    for month, revenue in by_month.items():\n        print(f\"  {month:<4} {'█' * round(24 * revenue / top)} ${revenue:,.0f}\")\n    print(\"\\nBest seller:\", max(by_product, key=by_product.get))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+   "sales.csv": "month,product,units,price\nJan,Mango,120,1.50\nJan,Banana,200,0.40\nJan,Papaya,30,3.20\nFeb,Mango,150,1.50\nFeb,Banana,180,0.45\nFeb,Papaya,45,3.20\nMar,Mango,210,1.60\nMar,Banana,160,0.45\nMar,Papaya,60,3.00\n"
+  }
+ },
+ {
+  "id": "python/json-explorer",
+  "name": "JSON Explorer",
+  "category": "Data",
+  "icon": "curlybraces.square.fill",
+  "summary": "Load a JSON file and walk through it as a tree.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Print any JSON file as a tree and pull values out by path.\"\"\"\nimport json\nfrom pathlib import Path\n\nFILE = Path(__file__).with_name(\"data.json\")\n\n\ndef tree(value, indent=0, key=None):\n    pad = \"  \" * indent\n    label = f\"{key}: \" if key is not None else \"\"\n    if isinstance(value, dict):\n        print(f\"{pad}{label}{{{len(value)} keys}}\")\n        for k, v in value.items():\n            tree(v, indent + 1, k)\n    elif isinstance(value, list):\n        print(f\"{pad}{label}[{len(value)} items]\")\n        for i, v in enumerate(value):\n            tree(v, indent + 1, i)\n    else:\n        print(f\"{pad}{label}{value!r}\")\n\n\ndef get(value, path):\n    \"\"\"get(data, 'users.0.name') → follows keys and list positions.\"\"\"\n    for part in path.split(\".\"):\n        value = value[int(part)] if isinstance(value, list) else value[part]\n    return value\n\n\ndef main():\n    data = json.loads(FILE.read_text())\n    tree(data)\n    print(\"\\nusers.0.name →\", get(data, \"users.0.name\"))\n    print(\"Active users →\", [u[\"name\"] for u in data[\"users\"] if u[\"active\"]])\n\n\nif __name__ == \"__main__\":\n    main()\n",
+   "data.json": "{\n  \"app\": \"MangoIDE\",\n  \"version\": 1,\n  \"users\": [\n    {\"name\": \"Ada\", \"active\": true, \"tags\": [\"admin\", \"dev\"]},\n    {\"name\": \"Linus\", \"active\": false, \"tags\": [\"dev\"]},\n    {\"name\": \"Grace\", \"active\": true, \"tags\": []}\n  ]\n}\n"
+  }
+ },
+ {
+  "id": "python/bar-chart",
+  "name": "Text Bar Chart",
+  "category": "Data",
+  "icon": "chart.bar.fill",
+  "summary": "Turn numbers into a chart you can print anywhere.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Draw horizontal and vertical bar charts with plain text.\"\"\"\n\nDATA = {\"Mon\": 12, \"Tue\": 18, \"Wed\": 7, \"Thu\": 22, \"Fri\": 15, \"Sat\": 30, \"Sun\": 26}\n\n\ndef horizontal(data, width=30):\n    top = max(data.values())\n    for label, value in data.items():\n        print(f\"{label:>4} │{'█' * round(width * value / top)} {value}\")\n\n\ndef vertical(data, height=8):\n    top = max(data.values())\n    for level in range(height, 0, -1):\n        print(\" \".join(\" ██ \" if value / top * height >= level else \"    \" for value in data.values()))\n    print(\" \".join(f\"{label:^4}\" for label in data))\n\n\ndef main():\n    print(\"Steps (thousands) this week\\n\")\n    horizontal(DATA)\n    print()\n    vertical(DATA)\n    values = list(DATA.values())\n    print(f\"\\nTotal {sum(values)}, average {sum(values) / len(values):.1f}, best day {max(DATA, key=DATA.get)}\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/sqlite-notes",
+  "name": "Notes Database (SQLite)",
+  "category": "Data",
+  "icon": "cylinder.split.1x2.fill",
+  "summary": "A real SQL database in one file: create, search and update notes.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Notes stored in a SQLite database (notes.db). Shows CREATE, INSERT, SELECT, UPDATE, DELETE.\"\"\"\nimport sqlite3\nfrom pathlib import Path\n\nDB = Path(__file__).with_name(\"notes.db\")\n\n\ndef connect():\n    con = sqlite3.connect(DB)\n    con.row_factory = sqlite3.Row\n    con.execute(\"\"\"CREATE TABLE IF NOT EXISTS notes (\n        id INTEGER PRIMARY KEY, title TEXT NOT NULL, body TEXT, pinned INTEGER DEFAULT 0,\n        created TEXT DEFAULT CURRENT_TIMESTAMP)\"\"\")\n    return con\n\n\ndef show(con, where=\"1\", args=()):\n    for row in con.execute(f\"SELECT * FROM notes WHERE {where} ORDER BY pinned DESC, id\", args):\n        print(f\"{'📌' if row['pinned'] else '  '} #{row['id']} {row['title']}: {row['body']}\")\n\n\ndef main():\n    con = connect()\n    if con.execute(\"SELECT COUNT(*) FROM notes\").fetchone()[0] == 0:\n        con.executemany(\"INSERT INTO notes (title, body) VALUES (?, ?)\",\n                        [(\"Shopping\", \"mangoes, limes\"), (\"Idea\", \"an app that waters plants\"), (\"Todo\", \"learn SQL joins\")])\n    con.execute(\"UPDATE notes SET pinned = 1 WHERE title = ?\", (\"Idea\",))\n    con.commit()\n    print(\"All notes:\")\n    show(con)\n    print(\"\\nSearch for 'sql':\")\n    show(con, \"title LIKE ? OR body LIKE ?\", (\"%sql%\", \"%sql%\"))\n    print(\"\\nCount:\", con.execute(\"SELECT COUNT(*) FROM notes\").fetchone()[0])\n    con.close()\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/log-analyzer",
+  "name": "Log File Analyzer",
+  "category": "Data",
+  "icon": "doc.text.magnifyingglass",
+  "summary": "Pull errors, status codes and slow requests out of a server log.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Parse a web server log with regular expressions and summarize it.\"\"\"\nimport re\nfrom collections import Counter\nfrom pathlib import Path\n\nLINE = re.compile(r'(?P<ip>\\S+) \\[(?P<time>[^\\]]+)\\] \"(?P<method>\\w+) (?P<path>\\S+)\" (?P<status>\\d{3}) (?P<ms>\\d+)ms')\n\n\ndef parse(text):\n    return [m.groupdict() for m in map(LINE.match, text.splitlines()) if m]\n\n\ndef main():\n    rows = parse(Path(__file__).with_name(\"server.log\").read_text())\n    print(f\"{len(rows)} requests\\n\")\n    print(\"Status codes:\", dict(Counter(r[\"status\"] for r in rows)))\n    print(\"Top pages:   \", Counter(r[\"path\"] for r in rows).most_common(3))\n    print(\"Busiest IPs: \", Counter(r[\"ip\"] for r in rows).most_common(2))\n    errors = [r for r in rows if r[\"status\"].startswith(\"5\")]\n    print(f\"\\n{len(errors)} server errors:\")\n    for r in errors:\n        print(f\"  {r['time']}  {r['method']} {r['path']}  from {r['ip']}\")\n    slowest = max(rows, key=lambda r: int(r[\"ms\"]))\n    print(f\"\\nSlowest: {slowest['path']} took {slowest['ms']}ms\")\n    print(f\"Average: {sum(int(r['ms']) for r in rows) / len(rows):.0f}ms\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+   "server.log": "10.0.0.5 [09:00:01] \"GET /\" 200 35ms\n10.0.0.8 [09:00:04] \"GET /login\" 200 48ms\n10.0.0.5 [09:00:09] \"POST /login\" 302 120ms\n10.0.0.9 [09:01:15] \"GET /api/items\" 200 210ms\n10.0.0.5 [09:01:20] \"GET /api/items\" 500 1530ms\n10.0.0.8 [09:02:02] \"GET /missing\" 404 12ms\n10.0.0.5 [09:02:30] \"GET /\" 200 31ms\n10.0.0.9 [09:03:11] \"POST /api/items\" 503 2010ms\n10.0.0.5 [09:03:40] \"GET /api/items\" 200 190ms\n"
+  }
+ },
+ {
+  "id": "python/sorting-visualizer",
+  "name": "Sorting Visualizer",
+  "category": "Algorithms",
+  "icon": "chart.bar.xaxis",
+  "summary": "Watch bubble sort, insertion sort and quicksort step by step.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"See how three sorting algorithms move numbers around, and count their steps.\"\"\"\nimport random\n\n\ndef draw(values, note=\"\"):\n    print(\" \".join(f\"{v:>2}\" for v in values), \" \", note)\n\n\ndef bubble(values):\n    a, steps = values[:], 0\n    for end in range(len(a) - 1, 0, -1):\n        for i in range(end):\n            steps += 1\n            if a[i] > a[i + 1]:\n                a[i], a[i + 1] = a[i + 1], a[i]\n        draw(a, f\"largest {a[end]} bubbled to the end\")\n    return a, steps\n\n\ndef insertion(values):\n    a, steps = values[:], 0\n    for i in range(1, len(a)):\n        item, j = a[i], i - 1\n        while j >= 0 and a[j] > item:\n            a[j + 1] = a[j]\n            j -= 1\n            steps += 1\n        a[j + 1] = item\n        draw(a, f\"inserted {item}\")\n    return a, steps\n\n\ndef quick(values):\n    steps = 0\n\n    def sort(a):\n        nonlocal steps\n        if len(a) <= 1:\n            return a\n        pivot, rest = a[0], a[1:]\n        steps += len(rest)\n        return sort([x for x in rest if x < pivot]) + [pivot] + sort([x for x in rest if x >= pivot])\n\n    return sort(values[:]), steps\n\n\ndef main():\n    values = random.sample(range(1, 40), 8)\n    for name, fn in ((\"Bubble sort\", bubble), (\"Insertion sort\", insertion), (\"Quicksort\", quick)):\n        print(f\"\\n{name}\")\n        draw(values, \"start\")\n        result, steps = fn(values)\n        draw(result, f\"done in {steps} comparisons\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/binary-search",
+  "name": "Binary Search",
+  "category": "Algorithms",
+  "icon": "magnifyingglass.circle.fill",
+  "summary": "Find a number in a sorted list by halving the search each step.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Binary search, shown step by step, compared with checking every item.\"\"\"\n\n\ndef binary_search(items, target):\n    low, high, steps = 0, len(items) - 1, 0\n    while low <= high:\n        mid = (low + high) // 2\n        steps += 1\n        print(f\"  step {steps}: looking at position {mid} (value {items[mid]}) between {low} and {high}\")\n        if items[mid] == target:\n            return mid, steps\n        if items[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1, steps\n\n\ndef main():\n    items = list(range(3, 300, 3))\n    text = input(f\"Number to find in {len(items)} sorted numbers (3, 6, 9 … 297) [201]: \").strip()\n    target = int(text) if text.lstrip(\"-\").isdigit() else 201\n    position, steps = binary_search(items, target)\n    print(f\"Found at position {position}.\" if position >= 0 else \"Not in the list.\")\n    print(f\"Binary search took {steps} steps; checking one by one could take {len(items)}.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(binary_search(list(range(3, 300, 3)), 201))\n"
+  }
+ },
+ {
+  "id": "python/fibonacci",
+  "name": "Fibonacci Three Ways",
+  "category": "Algorithms",
+  "icon": "function",
+  "summary": "Slow recursion, fast memoization and a generator, timed side by side.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Three ways to compute Fibonacci numbers, and why one of them is painfully slow.\"\"\"\nimport time\nfrom functools import lru_cache\n\n\ndef fib_slow(n):\n    return n if n < 2 else fib_slow(n - 1) + fib_slow(n - 2)\n\n\n@lru_cache(maxsize=None)\ndef fib_memo(n):\n    return n if n < 2 else fib_memo(n - 1) + fib_memo(n - 2)\n\n\ndef fib_stream():\n    a, b = 0, 1\n    while True:\n        yield a\n        a, b = b, a + b\n\n\ndef timed(fn, n):\n    start = time.perf_counter()\n    result = fn(n)\n    return result, (time.perf_counter() - start) * 1000\n\n\ndef main():\n    n = 24\n    for name, fn in ((\"plain recursion\", fib_slow), (\"with a cache\", fib_memo)):\n        result, ms = timed(fn, n)\n        print(f\"fib({n}) = {result}  {name:<16} {ms:8.3f} ms\")\n    stream = fib_stream()\n    print(\"First 15:\", [next(stream) for _ in range(15)])\n    print(\"fib(200) with the cache:\", fib_memo(200))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/prime-sieve",
+  "name": "Prime Numbers",
+  "category": "Algorithms",
+  "icon": "number.circle.fill",
+  "summary": "Find every prime up to a limit with the Sieve of Eratosthenes.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Find primes with the Sieve of Eratosthenes, and split a number into prime factors.\"\"\"\n\n\ndef sieve(limit):\n    is_prime = [True] * (limit + 1)\n    is_prime[0:2] = [False, False]\n    for n in range(2, int(limit ** 0.5) + 1):\n        if is_prime[n]:\n            for multiple in range(n * n, limit + 1, n):\n                is_prime[multiple] = False\n    return [n for n, prime in enumerate(is_prime) if prime]\n\n\ndef factors(n):\n    out, d = [], 2\n    while d * d <= n:\n        while n % d == 0:\n            out.append(d)\n            n //= d\n        d += 1\n    return out + ([n] if n > 1 else [])\n\n\ndef main():\n    text = input(\"Find primes up to [100]: \").strip()\n    limit = min(int(text), 1_000_000) if text.isdigit() and int(text) >= 2 else 100\n    primes = sieve(limit)\n    print(f\"{len(primes)} primes up to {limit}:\")\n    print(primes if len(primes) <= 60 else f\"{primes[:30]} … {primes[-5:]}\")\n    print(f\"Prime factors of {limit}: {factors(limit)}\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(sieve(100))\n"
+  }
+ },
+ {
+  "id": "python/maze-solver",
+  "name": "Maze Solver",
+  "category": "Algorithms",
+  "icon": "arrow.triangle.turn.up.right.diamond.fill",
+  "summary": "Find the shortest path through a maze with breadth-first search.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Solve a maze with breadth-first search. Edit MAZE: # wall, S start, E end.\"\"\"\nfrom collections import deque\n\nMAZE = \"\"\"\n##########\n#S   #   #\n# ## # # #\n# #    # #\n# #### # #\n#    #   #\n#### # ###\n#      E #\n##########\n\"\"\".strip().splitlines()\n\n\ndef find(char):\n    for r, row in enumerate(MAZE):\n        if char in row:\n            return r, row.index(char)\n\n\ndef solve():\n    start, end = find(\"S\"), find(\"E\")\n    came_from, queue = {start: None}, deque([start])\n    while queue:\n        spot = queue.popleft()\n        if spot == end:\n            path = []\n            while spot:\n                path.append(spot)\n                spot = came_from[spot]\n            return path[::-1]\n        r, c = spot\n        for nxt in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):\n            if MAZE[nxt[0]][nxt[1]] != \"#\" and nxt not in came_from:\n                came_from[nxt] = spot\n                queue.append(nxt)\n    return None\n\n\ndef main():\n    path = solve()\n    if not path:\n        print(\"No way through!\")\n        return\n    steps = set(path[1:-1])\n    for r, row in enumerate(MAZE):\n        print(\"\".join(\"•\" if (r, c) in steps else ch for c, ch in enumerate(row)))\n    print(f\"\\nShortest path: {len(path) - 1} steps\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/n-queens",
+  "name": "N-Queens Puzzle",
+  "category": "Algorithms",
+  "icon": "crown.fill",
+  "summary": "Place queens on a chessboard so none can attack another (backtracking).",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Place N queens on an N×N board so that none attack each other.\"\"\"\n\n\ndef solve(n):\n    solutions, cols = [], []\n\n    def safe(row, col):\n        return all(c != col and abs(c - col) != row - r for r, c in enumerate(cols))\n\n    def place(row):\n        if row == n:\n            solutions.append(cols[:])\n            return\n        for col in range(n):\n            if safe(row, col):\n                cols.append(col)\n                place(row + 1)\n                cols.pop()\n\n    place(0)\n    return solutions\n\n\ndef draw(cols):\n    for col in cols:\n        print(\" \".join(\"♛\" if c == col else \"·\" for c in range(len(cols))))\n\n\ndef main():\n    text = input(\"Board size 4-9 [6]: \").strip()\n    n = int(text) if text.isdigit() and 4 <= int(text) <= 9 else 6\n    solutions = solve(n)\n    print(f\"{len(solutions)} ways to place {n} queens. Here's the first:\\n\")\n    draw(solutions[0])\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        draw(solve(6)[0])\n"
+  }
+ },
+ {
+  "id": "python/sudoku-solver",
+  "name": "Sudoku Solver",
+  "category": "Algorithms",
+  "icon": "square.grid.3x3.topleft.filled",
+  "summary": "Solve any sudoku puzzle in a blink with backtracking.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Solve a sudoku. Edit PUZZLE (0 means empty) and run again.\"\"\"\n\nPUZZLE = [\n    \"530070000\", \"600195000\", \"098000060\",\n    \"800060003\", \"400803001\", \"700020006\",\n    \"060000280\", \"000419005\", \"000080079\",\n]\n\n\ndef options(grid, r, c):\n    used = set(grid[r]) | {grid[i][c] for i in range(9)}\n    br, bc = r // 3 * 3, c // 3 * 3\n    used |= {grid[br + i][bc + j] for i in range(3) for j in range(3)}\n    return [d for d in range(1, 10) if d not in used]\n\n\ndef solve(grid):\n    for r in range(9):\n        for c in range(9):\n            if grid[r][c] == 0:\n                for digit in options(grid, r, c):\n                    grid[r][c] = digit\n                    if solve(grid):\n                        return True\n                    grid[r][c] = 0\n                return False\n    return True\n\n\ndef draw(grid):\n    for r, row in enumerate(grid):\n        if r % 3 == 0 and r:\n            print(\"------+-------+------\")\n        print(\" | \".join(\" \".join(str(d or \"·\") for d in row[i:i + 3]) for i in (0, 3, 6)))\n\n\ndef main():\n    grid = [[int(ch) for ch in row] for row in PUZZLE]\n    draw(grid)\n    print(\"\\nSolving…\\n\")\n    if solve(grid):\n        draw(grid)\n    else:\n        print(\"This puzzle has no solution.\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/game-of-life",
+  "name": "Game of Life",
+  "category": "Algorithms",
+  "icon": "circle.grid.cross.fill",
+  "summary": "Conway's famous cell simulation: simple rules, surprising patterns.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Conway's Game of Life. A cell lives with 2-3 neighbours and is born with exactly 3.\"\"\"\nimport time\n\nWIDTH, HEIGHT = 24, 10\nGLIDER = {(1, 0), (2, 1), (0, 2), (1, 2), (2, 2)}\nBLINKER = {(12, 4), (13, 4), (14, 4)}\n\n\ndef step(alive):\n    counts = {}\n    for x, y in alive:\n        for dx in (-1, 0, 1):\n            for dy in (-1, 0, 1):\n                if dx or dy:\n                    spot = ((x + dx) % WIDTH, (y + dy) % HEIGHT)\n                    counts[spot] = counts.get(spot, 0) + 1\n    return {spot for spot, n in counts.items() if n == 3 or (n == 2 and spot in alive)}\n\n\ndef draw(alive, generation):\n    print(f\"Generation {generation}\")\n    for y in range(HEIGHT):\n        print(\"\".join(\"█\" if (x, y) in alive else \"·\" for x in range(WIDTH)))\n    print()\n\n\ndef main():\n    alive = GLIDER | BLINKER\n    for generation in range(8):\n        draw(alive, generation)\n        alive = step(alive)\n        time.sleep(0.15)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/tower-of-hanoi",
+  "name": "Tower of Hanoi",
+  "category": "Algorithms",
+  "icon": "square.stack.3d.up.fill",
+  "summary": "Move a stack of discs between pegs using recursion.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Solve the Tower of Hanoi and draw every move.\"\"\"\n\n\ndef draw(pegs, discs):\n    for level in range(discs - 1, -1, -1):\n        row = []\n        for peg in pegs:\n            size = peg[level] if level < len(peg) else 0\n            row.append((\"█\" * (size * 2 - 1) if size else \"|\").center(discs * 2 + 1))\n        print(\"\".join(row))\n    print(\"\".join(name.center(discs * 2 + 1) for name in \"ABC\") + \"\\n\")\n\n\ndef hanoi(n, source, target, spare, pegs, discs, moves):\n    if n == 0:\n        return\n    hanoi(n - 1, source, spare, target, pegs, discs, moves)\n    pegs[target].append(pegs[source].pop())\n    moves.append((source, target))\n    print(f\"Move {len(moves)}: {'ABC'[source]} → {'ABC'[target]}\")\n    draw(pegs, discs)\n    hanoi(n - 1, spare, target, source, pegs, discs, moves)\n\n\ndef main():\n    text = input(\"Discs 1-5 [3]: \").strip()\n    discs = int(text) if text.isdigit() and 1 <= int(text) <= 5 else 3\n    pegs, moves = [list(range(discs, 0, -1)), [], []], []\n    draw(pegs, discs)\n    hanoi(discs, 0, 2, 1, pegs, discs, moves)\n    print(f\"Solved in {len(moves)} moves (the minimum is 2^{discs} - 1 = {2 ** discs - 1}).\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        print(\"\\nBye!\")\n"
+  }
+ },
+ {
+  "id": "python/bank-account",
+  "name": "Bank Account (Classes)",
+  "category": "Learn Python",
+  "icon": "building.columns.fill",
+  "summary": "Classes, properties and custom errors with a simple bank.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Classes in practice: accounts that deposit, withdraw and transfer.\"\"\"\n\n\nclass InsufficientFunds(Exception):\n    pass\n\n\nclass Account:\n    def __init__(self, owner, balance=0.0):\n        self.owner = owner\n        self._balance = balance\n        self.history = []\n\n    @property\n    def balance(self):\n        return self._balance\n\n    def deposit(self, amount):\n        if amount <= 0:\n            raise ValueError(\"Deposit must be more than zero.\")\n        self._balance += amount\n        self.history.append((\"deposit\", amount))\n\n    def withdraw(self, amount):\n        if amount > self._balance:\n            raise InsufficientFunds(f\"{self.owner} only has ${self._balance:.2f}.\")\n        self._balance -= amount\n        self.history.append((\"withdraw\", amount))\n\n    def transfer(self, other, amount):\n        self.withdraw(amount)\n        other.deposit(amount)\n\n    def __repr__(self):\n        return f\"Account({self.owner!r}, ${self._balance:.2f})\"\n\n\nclass SavingsAccount(Account):\n    rate = 0.04\n\n    def add_interest(self):\n        self.deposit(round(self.balance * self.rate, 2))\n\n\ndef main():\n    ada, bob = Account(\"Ada\", 100), SavingsAccount(\"Bob\", 500)\n    ada.deposit(50)\n    bob.transfer(ada, 120)\n    bob.add_interest()\n    print(ada, bob)\n    try:\n        ada.withdraw(1000)\n    except InsufficientFunds as e:\n        print(\"Refused:\", e)\n    print(\"Ada's history:\", ada.history)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/dataclasses-inventory",
+  "name": "Inventory (Dataclasses)",
+  "category": "Learn Python",
+  "icon": "shippingbox.fill",
+  "summary": "Tidy data objects with dataclasses, sorting and totals.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Dataclasses give you tidy objects with almost no code.\"\"\"\nfrom dataclasses import dataclass, field\n\n\n@dataclass(order=True)\nclass Item:\n    name: str\n    price: float\n    quantity: int = 0\n    tags: list = field(default_factory=list)\n\n    @property\n    def value(self):\n        return self.price * self.quantity\n\n\n@dataclass\nclass Inventory:\n    items: dict = field(default_factory=dict)\n\n    def add(self, item):\n        if item.name in self.items:\n            self.items[item.name].quantity += item.quantity\n        else:\n            self.items[item.name] = item\n\n    def low_stock(self, below=5):\n        return [i for i in self.items.values() if i.quantity < below]\n\n    def total(self):\n        return sum(i.value for i in self.items.values())\n\n\ndef main():\n    stock = Inventory()\n    for item in (Item(\"mango\", 1.5, 40, [\"fruit\"]), Item(\"lime\", 0.3, 3, [\"fruit\"]),\n                 Item(\"blender\", 49.0, 2, [\"kitchen\"]), Item(\"mango\", 1.5, 10)):\n        stock.add(item)\n    for item in sorted(stock.items.values(), key=lambda i: -i.value):\n        print(f\"{item.name:<10} {item.quantity:>3} × ${item.price:<6.2f} = ${item.value:>7.2f}  {item.tags}\")\n    print(f\"\\nTotal value: ${stock.total():.2f}\")\n    print(\"Low stock:\", [i.name for i in stock.low_stock()])\n    print(\"Printing an item:\", stock.items[\"lime\"])\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/decorators",
+  "name": "Decorators",
+  "category": "Learn Python",
+  "icon": "wand.and.stars",
+  "summary": "Wrap functions to time them, retry them and cache their results.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Decorators add behaviour to functions without changing them.\"\"\"\nimport functools\nimport random\nimport time\n\n\ndef timed(fn):\n    @functools.wraps(fn)\n    def wrapper(*args, **kwargs):\n        start = time.perf_counter()\n        result = fn(*args, **kwargs)\n        print(f\"  ⏱ {fn.__name__} took {(time.perf_counter() - start) * 1000:.2f} ms\")\n        return result\n    return wrapper\n\n\ndef retry(times):\n    def decorator(fn):\n        @functools.wraps(fn)\n        def wrapper(*args, **kwargs):\n            for attempt in range(1, times + 1):\n                try:\n                    return fn(*args, **kwargs)\n                except RuntimeError as e:\n                    print(f\"  attempt {attempt} failed: {e}\")\n            raise RuntimeError(f\"{fn.__name__} failed {times} times\")\n        return wrapper\n    return decorator\n\n\n@timed\ndef slow_sum(n):\n    return sum(i * i for i in range(n))\n\n\n@retry(times=5)\ndef flaky():\n    if random.random() < 0.6:\n        raise RuntimeError(\"network hiccup\")\n    return \"success\"\n\n\ndef main():\n    print(\"slow_sum:\", slow_sum(200_000))\n    random.seed(7)\n    print(\"flaky:\", flaky())\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/generators",
+  "name": "Generators & Pipelines",
+  "category": "Learn Python",
+  "icon": "arrow.triangle.branch",
+  "summary": "Process data one item at a time without loading it all into memory.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Generators produce values one at a time, so you can chain steps like a pipeline.\"\"\"\nimport itertools\n\n\ndef numbers(start=1):\n    while True:\n        yield start\n        start += 1\n\n\ndef only(predicate, stream):\n    for item in stream:\n        if predicate(item):\n            yield item\n\n\ndef squares(stream):\n    for item in stream:\n        yield item * item\n\n\ndef chunks(stream, size):\n    while batch := list(itertools.islice(stream, size)):\n        yield batch\n\n\ndef main():\n    evens = only(lambda n: n % 2 == 0, numbers())\n    pipeline = squares(evens)\n    print(\"First 8 even squares:\", list(itertools.islice(pipeline, 8)))\n    print(\"In batches of 4:\", list(chunks(iter(range(10)), 4)))\n    words = [\"mango\", \"kiwi\", \"fig\", \"banana\", \"plum\"]\n    print(\"Generator expression:\", sum(len(w) for w in words), \"letters in total\")\n    print(\"Longest first:\", sorted(words, key=len, reverse=True))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/asyncio-demo",
+  "name": "Async Tasks (asyncio)",
+  "category": "Learn Python",
+  "icon": "bolt.horizontal.fill",
+  "summary": "Run several slow jobs at once instead of one after another.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"asyncio runs waiting jobs side by side. Three 'downloads' finish in the time of the longest one.\"\"\"\nimport asyncio\nimport time\n\n\nasync def download(name, seconds):\n    print(f\"  start  {name}\")\n    await asyncio.sleep(seconds)\n    print(f\"  finish {name} after {seconds}s\")\n    return f\"{name}.zip\"\n\n\nasync def one_by_one(jobs):\n    return [await download(name, s) for name, s in jobs]\n\n\nasync def all_at_once(jobs):\n    return await asyncio.gather(*(download(name, s) for name, s in jobs))\n\n\nasync def main():\n    jobs = [(\"photos\", 0.6), (\"music\", 0.4), (\"docs\", 0.2)]\n    for label, runner in ((\"One by one\", one_by_one), (\"All at once\", all_at_once)):\n        print(label)\n        start = time.perf_counter()\n        files = await runner(jobs)\n        print(f\"  got {files} in {time.perf_counter() - start:.1f}s\\n\")\n\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n"
+  }
+ },
+ {
+  "id": "python/unit-tests",
+  "name": "Unit Tests",
+  "category": "Learn Python",
+  "icon": "checkmark.seal.fill",
+  "summary": "Test your own functions with Python's built-in unittest.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Run the tests in test_shop.py. Break something in shop.py and run again to see a failure.\"\"\"\nimport unittest\n\nif __name__ == \"__main__\":\n    suite = unittest.defaultTestLoader.discover(\".\", pattern=\"test_*.py\")\n    result = unittest.TextTestRunner(verbosity=2).run(suite)\n    print(\"\\nAll good ✅\" if result.wasSuccessful() else \"\\nSome tests failed ❌\")\n",
+   "shop.py": "\"\"\"The code being tested.\"\"\"\n\n\ndef total(prices, tax=0.08):\n    return round(sum(prices) * (1 + tax), 2)\n\n\ndef discount(price, percent):\n    if not 0 <= percent <= 100:\n        raise ValueError(\"percent must be between 0 and 100\")\n    return round(price * (1 - percent / 100), 2)\n",
+   "test_shop.py": "import unittest\n\nfrom shop import discount, total\n\n\nclass ShopTests(unittest.TestCase):\n    def test_total_adds_tax(self):\n        self.assertEqual(total([10, 20]), 32.4)\n\n    def test_total_of_nothing_is_zero(self):\n        self.assertEqual(total([]), 0)\n\n    def test_discount(self):\n        self.assertEqual(discount(80, 25), 60)\n\n    def test_discount_rejects_bad_percent(self):\n        with self.assertRaises(ValueError):\n            discount(80, 150)\n"
+  }
+ },
+ {
+  "id": "python/error-handling",
+  "name": "Handling Errors",
+  "category": "Learn Python",
+  "icon": "exclamationmark.shield.fill",
+  "summary": "try, except, else, finally and your own error types.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"How to catch errors, clean up afterwards and raise your own.\"\"\"\n\n\nclass AgeError(ValueError):\n    \"\"\"Raised when an age makes no sense.\"\"\"\n\n\ndef parse_age(text):\n    try:\n        age = int(text)\n    except ValueError:\n        raise AgeError(f\"{text!r} isn't a whole number\") from None\n    if not 0 <= age <= 130:\n        raise AgeError(f\"{age} isn't a realistic age\")\n    return age\n\n\ndef safe_divide(a, b):\n    try:\n        result = a / b\n    except ZeroDivisionError:\n        print(\"  can't divide by zero, using 0\")\n        return 0\n    else:\n        print(\"  division worked\")\n        return result\n    finally:\n        print(\"  (finally always runs)\")\n\n\ndef main():\n    for text in (\"42\", \"abc\", \"-5\", \"999\"):\n        try:\n            print(f\"{text!r} → age {parse_age(text)}\")\n        except AgeError as e:\n            print(f\"{text!r} → rejected: {e}\")\n    print(safe_divide(10, 2))\n    print(safe_divide(1, 0))\n    data = {\"name\": \"Ada\"}\n    print(\"Missing key with a default:\", data.get(\"email\", \"no email\"))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/comprehensions",
+  "name": "Lists, Dicts & Comprehensions",
+  "category": "Learn Python",
+  "icon": "list.bullet.rectangle.fill",
+  "summary": "The everyday tools for working with collections of data.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Lists, dictionaries, sets and comprehensions on one page.\"\"\"\n\nPEOPLE = [\n    {\"name\": \"Ada\", \"age\": 36, \"city\": \"London\"},\n    {\"name\": \"Linus\", \"age\": 28, \"city\": \"Helsinki\"},\n    {\"name\": \"Grace\", \"age\": 45, \"city\": \"New York\"},\n    {\"name\": \"Alan\", \"age\": 41, \"city\": \"London\"},\n]\n\n\ndef main():\n    names = [p[\"name\"] for p in PEOPLE]\n    print(\"Names:\", names)\n    print(\"Over 40:\", [p[\"name\"] for p in PEOPLE if p[\"age\"] > 40])\n    print(\"Age by name:\", {p[\"name\"]: p[\"age\"] for p in PEOPLE})\n    print(\"Cities (no repeats):\", sorted({p[\"city\"] for p in PEOPLE}))\n    print(\"Oldest:\", max(PEOPLE, key=lambda p: p[\"age\"])[\"name\"])\n    print(\"Average age:\", sum(p[\"age\"] for p in PEOPLE) / len(PEOPLE))\n\n    by_city = {}\n    for p in PEOPLE:\n        by_city.setdefault(p[\"city\"], []).append(p[\"name\"])\n    print(\"Grouped by city:\", by_city)\n\n    print(\"Sorted by age:\", [p[\"name\"] for p in sorted(PEOPLE, key=lambda p: p[\"age\"])])\n    print(\"Slices:\", names[:2], names[-1], names[::-1])\n    print(\"Pairs:\", list(zip(names, range(1, 5))))\n    print(\"Any under 30?\", any(p[\"age\"] < 30 for p in PEOPLE), \"| All adults?\", all(p[\"age\"] >= 18 for p in PEOPLE))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/api-client",
+  "name": "Web API Client",
+  "category": "Internet",
+  "icon": "network",
+  "summary": "Fetch live JSON from the internet and print the parts you want.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Ask a public web API for data with nothing but the standard library.\"\"\"\nimport json\nimport urllib.error\nimport urllib.request\n\nURL = \"https://api.github.com/repos/python/cpython\"\n\n\ndef fetch_json(url, timeout=8):\n    request = urllib.request.Request(url, headers={\"User-Agent\": \"MangoIDE-template\"})\n    with urllib.request.urlopen(request, timeout=timeout) as response:\n        return json.loads(response.read().decode(\"utf-8\"))\n\n\ndef main():\n    print(\"Asking\", URL)\n    try:\n        repo = fetch_json(URL)\n    except (urllib.error.URLError, TimeoutError, ValueError) as e:\n        print(\"Couldn't reach the internet from here:\", e)\n        print(\"The code is right; it needs a connection where it runs.\")\n        return\n    print(f\"{repo['full_name']}: {repo['description']}\")\n    print(f\"⭐ {repo['stargazers_count']:,} stars, {repo['forks_count']:,} forks, {repo['open_issues_count']:,} open issues\")\n    print(\"Main language:\", repo[\"language\"])\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/html-scraper",
+  "name": "Web Page Scraper",
+  "category": "Internet",
+  "icon": "doc.richtext.fill",
+  "summary": "Pull the links and headings out of a web page's HTML.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Read HTML and collect its headings and links with the built-in HTMLParser.\"\"\"\nfrom html.parser import HTMLParser\n\nPAGE = \"\"\"\n<html><body>\n  <h1>Mango Recipes</h1>\n  <p>Fresh ideas, <a href=\"/smoothies\">smoothies</a> first.</p>\n  <h2>Sweet</h2>\n  <ul><li><a href=\"/sorbet\">Mango sorbet</a></li><li><a href=\"/lassi\">Mango lassi</a></li></ul>\n  <h2>Savory</h2>\n  <p>Try the <a href=\"https://example.com/salsa\">salsa</a>.</p>\n</body></html>\n\"\"\"\n\n\nclass Collector(HTMLParser):\n    def __init__(self):\n        super().__init__()\n        self.headings, self.links = [], []\n        self._tag, self._href = None, None\n\n    def handle_starttag(self, tag, attrs):\n        self._tag = tag\n        if tag == \"a\":\n            self._href = dict(attrs).get(\"href\")\n\n    def handle_data(self, data):\n        text = data.strip()\n        if not text:\n            return\n        if self._tag in (\"h1\", \"h2\", \"h3\"):\n            self.headings.append((self._tag, text))\n        elif self._tag == \"a\" and self._href:\n            self.links.append((text, self._href))\n\n    def handle_endtag(self, tag):\n        self._tag = None\n\n\ndef main():\n    collector = Collector()\n    collector.feed(PAGE)\n    print(\"Headings:\")\n    for level, text in collector.headings:\n        print(f\"  {'  ' * (int(level[1]) - 1)}{text}\")\n    print(\"Links:\")\n    for text, href in collector.links:\n        print(f\"  {text:<14} → {href}\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  }
+ },
+ {
+  "id": "python/cli-app",
+  "name": "Command-Line App (multi-file)",
+  "category": "Projects",
+  "icon": "terminal.fill",
+  "summary": "A real project layout: a package, commands and saved data.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"Entry point. Try Run Settings › Arguments: add \"Buy mangoes\"  |  list  |  done 1\"\"\"\nimport sys\n\nfrom tasks.commands import run\n\nif __name__ == \"__main__\":\n    # With no arguments, show a short demo.\n    args = sys.argv[1:] or [\"demo\"]\n    sys.exit(run(args))\n",
+   "tasks/__init__.py": "\"\"\"The tasks package: storage.py saves data, commands.py handles what the user typed.\"\"\"\n",
+   "tasks/storage.py": "import json\nfrom pathlib import Path\n\nFILE = Path(__file__).resolve().parent.parent / \"tasks.json\"\n\n\ndef load():\n    return json.loads(FILE.read_text()) if FILE.exists() else []\n\n\ndef save(tasks):\n    FILE.write_text(json.dumps(tasks, indent=2))\n",
+   "tasks/commands.py": "from . import storage\n\n\ndef show(tasks):\n    if not tasks:\n        print(\"No tasks yet.\")\n    for i, task in enumerate(tasks, 1):\n        print(f\"{i}. [{'x' if task['done'] else ' '}] {task['title']}\")\n\n\ndef run(args):\n    command, rest = args[0], args[1:]\n    tasks = storage.load()\n    if command == \"add\" and rest:\n        tasks.append({\"title\": \" \".join(rest), \"done\": False})\n    elif command == \"done\" and rest and rest[0].isdigit() and 1 <= int(rest[0]) <= len(tasks):\n        tasks[int(rest[0]) - 1][\"done\"] = True\n    elif command == \"demo\":\n        tasks = [{\"title\": \"Try Run Settings › Arguments\", \"done\": False}, {\"title\": \"Read tasks/commands.py\", \"done\": True}]\n    elif command != \"list\":\n        print(\"Usage: add <title> | done <number> | list\")\n        return 2\n    storage.save(tasks)\n    show(tasks)\n    return 0\n"
+  }
+ },
+ {
+  "id": "python/text-rpg",
+  "name": "Text RPG (multi-file)",
+  "category": "Projects",
+  "icon": "shield.lefthalf.filled",
+  "summary": "Fight monsters, level up and loot gold, split across modules.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A small turn-based RPG. Game rules live in game/, this file runs the loop.\"\"\"\nimport random\n\nfrom game.battle import fight\nfrom game.characters import Hero, random_monster\n\n\ndef main():\n    hero = Hero(input(\"Name your hero [Mango]: \").strip() or \"Mango\")\n    while hero.alive:\n        monster = random_monster(hero.level)\n        print(f\"\\nA wild {monster.name} appears! (HP {monster.hp})\")\n        if not fight(hero, monster, lambda: input(\"[a]ttack, [h]eal or [r]un? \").strip().lower()[:1]):\n            break\n        print(hero.status())\n        if input(\"Keep exploring? [y/n] \").strip().lower().startswith(\"n\"):\n            break\n    print(f\"\\n{hero.name} retires at level {hero.level} with {hero.gold} gold.\")\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except (EOFError, KeyboardInterrupt):\n        random.seed(1)\n        hero = Hero(\"Mango\")\n        fight(hero, random_monster(1), lambda: \"a\")\n        print(hero.status())\n",
+   "game/__init__.py": "\n",
+   "game/characters.py": "import random\nfrom dataclasses import dataclass\n\n\n@dataclass\nclass Fighter:\n    name: str\n    hp: int\n    attack: int\n\n    @property\n    def alive(self):\n        return self.hp > 0\n\n    def hit(self, other):\n        damage = random.randint(self.attack // 2, self.attack)\n        other.hp = max(0, other.hp - damage)\n        return damage\n\n\nclass Hero(Fighter):\n    def __init__(self, name):\n        super().__init__(name, hp=30, attack=8)\n        self.level, self.xp, self.gold, self.potions = 1, 0, 0, 2\n\n    def gain(self, xp, gold):\n        self.xp, self.gold = self.xp + xp, self.gold + gold\n        while self.xp >= self.level * 10:\n            self.xp -= self.level * 10\n            self.level += 1\n            self.attack += 2\n            self.hp += 10\n            print(f\"⬆️  Level {self.level}!\")\n\n    def status(self):\n        return f\"{self.name}: level {self.level}, HP {self.hp}, {self.gold} gold, {self.potions} potions\"\n\n\nMONSTERS = [(\"Slime\", 10, 4), (\"Goblin\", 16, 6), (\"Wolf\", 20, 7), (\"Ogre\", 30, 9)]\n\n\ndef random_monster(level):\n    name, hp, attack = random.choice(MONSTERS[: min(len(MONSTERS), level + 1)])\n    return Fighter(name, hp + level * 2, attack + level)\n",
+   "game/battle.py": "import random\n\n\ndef fight(hero, monster, choose):\n    \"\"\"Returns True if the hero survives (won or ran away).\"\"\"\n    while hero.alive and monster.alive:\n        action = choose()\n        if action == \"r\" and random.random() < 0.6:\n            print(\"You got away.\")\n            return True\n        if action == \"h\" and hero.potions:\n            hero.potions -= 1\n            hero.hp += 15\n            print(f\"You drink a potion. HP {hero.hp}\")\n        else:\n            print(f\"You hit the {monster.name} for {hero.hit(monster)}. (its HP {monster.hp})\")\n        if monster.alive:\n            print(f\"The {monster.name} hits you for {monster.hit(hero)}. (your HP {hero.hp})\")\n    if hero.alive:\n        gold = random.randint(3, 12)\n        print(f\"You beat the {monster.name} and find {gold} gold!\")\n        hero.gain(xp=8, gold=gold)\n    else:\n        print(\"You were defeated…\")\n    return hero.alive\n"
+  }
+ },
+ {
+  "id": "python/library-manager",
+  "name": "Library Manager (multi-file)",
+  "category": "Projects",
+  "icon": "books.vertical.fill",
+  "summary": "Models, a service layer and tests: how bigger programs are organized.",
+  "language": "python",
+  "entry": "main.py",
+  "files": {
+   "main.py": "\"\"\"A library that lends books. Models in library/models.py, rules in library/service.py.\"\"\"\nfrom library.models import Book, Member\nfrom library.service import Library, LendingError\n\n\ndef main():\n    lib = Library()\n    for title, author in ((\"Dune\", \"Frank Herbert\"), (\"Neuromancer\", \"William Gibson\"), (\"Emma\", \"Jane Austen\")):\n        lib.add_book(Book(title, author))\n    ada, bob = Member(\"Ada\"), Member(\"Bob\", limit=1)\n    lib.lend(\"Dune\", ada)\n    lib.lend(\"Emma\", bob)\n    for attempt in ((\"Dune\", bob), (\"Neuromancer\", bob), (\"Missing Book\", ada)):\n        try:\n            lib.lend(*attempt)\n        except LendingError as e:\n            print(\"✗\", e)\n    lib.give_back(\"Dune\")\n    lib.lend(\"Dune\", ada)\n    print()\n    for line in lib.report():\n        print(line)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+   "library/__init__.py": "\n",
+   "library/models.py": "from dataclasses import dataclass, field\n\n\n@dataclass\nclass Book:\n    title: str\n    author: str\n    borrower: \"Member | None\" = None\n\n    @property\n    def available(self):\n        return self.borrower is None\n\n\n@dataclass\nclass Member:\n    name: str\n    limit: int = 3\n    books: list = field(default_factory=list)\n",
+   "library/service.py": "from .models import Book, Member\n\n\nclass LendingError(Exception):\n    pass\n\n\nclass Library:\n    def __init__(self):\n        self.books = {}\n\n    def add_book(self, book: Book):\n        self.books[book.title] = book\n\n    def lend(self, title, member: Member):\n        book = self.books.get(title)\n        if book is None:\n            raise LendingError(f\"We don't have {title!r}.\")\n        if not book.available:\n            raise LendingError(f\"{title!r} is out with {book.borrower.name}.\")\n        if len(member.books) >= member.limit:\n            raise LendingError(f\"{member.name} already has {member.limit} book(s).\")\n        book.borrower = member\n        member.books.append(book)\n\n    def give_back(self, title):\n        book = self.books[title]\n        if book.borrower:\n            book.borrower.books.remove(book)\n            book.borrower = None\n\n    def report(self):\n        return [f\"{b.title:<12} {b.author:<16} {'on the shelf' if b.available else 'with ' + b.borrower.name}\"\n                for b in self.books.values()]\n",
+   "test_library.py": "\"\"\"Run this file to test the lending rules.\"\"\"\nimport unittest\n\nfrom library.models import Book, Member\nfrom library.service import Library, LendingError\n\n\nclass LibraryTests(unittest.TestCase):\n    def setUp(self):\n        self.lib = Library()\n        self.lib.add_book(Book(\"Dune\", \"Frank Herbert\"))\n\n    def test_lend_and_return(self):\n        ada = Member(\"Ada\")\n        self.lib.lend(\"Dune\", ada)\n        self.assertFalse(self.lib.books[\"Dune\"].available)\n        self.lib.give_back(\"Dune\")\n        self.assertEqual(ada.books, [])\n\n    def test_cannot_lend_twice(self):\n        self.lib.lend(\"Dune\", Member(\"Ada\"))\n        with self.assertRaises(LendingError):\n            self.lib.lend(\"Dune\", Member(\"Bob\"))\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  }
+ }
+]

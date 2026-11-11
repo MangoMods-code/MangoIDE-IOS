@@ -143,6 +143,7 @@ struct RootView: View {
             case .outline: OutlineSheet()
             case .definitions(let name, let results): DefinitionsSheet(name: name, results: results)
             case .runConfig: RunConfigSheet()
+            case .templates: TemplateGallery()
             case .agent:
                 if #available(iOS 16.4, *) {
                     AgentView()
@@ -235,6 +236,7 @@ struct TopBar: View {
                 Button { router.show(.newFile(defaultFolder)) } label: { Label("New File", systemImage: "doc.badge.plus") }
                 Button { router.show(.newFolder(defaultFolder)) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                 Button { router.show(.newProject) } label: { Label("New Project", systemImage: "shippingbox") }
+                Button { router.show(.templates) } label: { Label("New from Template…", systemImage: "square.grid.2x2") }
             }
             Section {
                 Button { router.show(.openFile) } label: { Label("Open File…", systemImage: "doc") }
@@ -321,6 +323,14 @@ struct TopBar: View {
     }
 }
 
+/// Tells you a binary property list is being edited as XML.
+struct PlistBadge: View {
+    @ObservedObject var doc: EditorDocument
+    var body: some View {
+        if doc.isBinaryPlist { Text("Binary plist · editing as XML").foregroundStyle(.tint) }
+    }
+}
+
 struct ActiveTitle: View {
     @ObservedObject var doc: EditorDocument
     var body: some View {
@@ -345,6 +355,7 @@ struct StatusBar: View {
             if let doc = editor.activeDocument {
                 Text(workspace.displayPath(doc.url.deletingLastPathComponent())).lineLimit(1).truncationMode(.head)
                 Spacer()
+                PlistBadge(doc: doc)
                 ProblemsBadge(doc: doc)
                 CursorLabel(cursor: editor.cursor)
                 Text(settings.insertSpaces ? "Spaces: \(settings.tabWidth)" : "Tabs")

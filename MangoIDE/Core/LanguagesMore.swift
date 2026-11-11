@@ -17,6 +17,13 @@ extension LanguageLibrary {
         L("objc", "Objective-C", ["m", "mm"], kw: ["@interface", "@implementation", "@end", "@property", "@synthesize", "@protocol", "@class", "@selector", "self", "super", "if", "else", "for", "while", "return", "static", "const", "void", "id", "nil", "YES", "NO", "import", "typedef", "struct"],
           types: ["NSString", "NSArray", "NSDictionary", "NSObject", "NSInteger", "BOOL", "int", "float", "double", "char"], lit: ["nil", "YES", "NO", "NULL"],
           line: "//", block: ("/*", "*/"), runner: "objective-c", template: "#import <Foundation/Foundation.h>\n\nint main(void) {\n    @autoreleasepool {\n        NSLog(@\"Hello from MangoIDE!\");\n    }\n    return 0;\n}\n", pre: true),
+        L("logos", "Logos (iOS Tweak)", ["x", "xm", "xi", "xmi"],
+          kw: ["%hook", "%end", "%orig", "%group", "%ctor", "%dtor", "%new", "%init", "%c", "%log", "%subclass", "%property", "%hookf", "%config",
+               "@interface", "@implementation", "@end", "@property", "@synthesize", "@protocol", "@class", "@selector", "self", "super", "if", "else", "for", "while",
+               "return", "static", "const", "void", "id", "import", "include", "typedef", "struct", "extern", "switch", "case", "break", "default"],
+          types: ["NSString", "NSArray", "NSDictionary", "NSObject", "NSInteger", "NSUInteger", "CGFloat", "CGRect", "CGPoint", "CGSize", "BOOL", "int", "float", "double", "char",
+                  "UIView", "UIViewController", "UIColor", "UILabel", "UIImage", "UIButton", "UIWindow", "UIApplication", "NSBundle", "NSUserDefaults"],
+          lit: ["nil", "YES", "NO", "NULL"], line: "//", block: ("/*", "*/"), pre: true),
         L("d", "D", ["d"], kw: ["import", "module", "void", "int", "auto", "if", "else", "for", "foreach", "while", "return", "class", "struct", "enum", "immutable", "const", "string", "writeln", "static", "public", "private"],
           lit: ["true", "false", "null"], line: "//", block: ("/*", "*/"), runner: "d",
           template: "import std.stdio;\n\nvoid main() {\n    auto name = \"MangoIDE\";\n    writeln(\"Hello from \", name, \"!\");\n}\n"),
@@ -119,7 +126,7 @@ extension LanguageLibrary {
     /// Files known by their whole name rather than an extension.
     static let specialFileNames: [String: String] = [
         "dockerfile": "dockerfile", "containerfile": "dockerfile",
-        "makefile": "makefile", "gnumakefile": "makefile",
+        "makefile": "makefile", "gnumakefile": "makefile", "control": "yaml",
         "cmakelists.txt": "cmake",
         "gemfile": "ruby", "rakefile": "ruby", "podfile": "ruby", "fastfile": "ruby", "brewfile": "ruby",
         "jenkinsfile": "groovy", "vagrantfile": "ruby",

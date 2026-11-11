@@ -68,7 +68,7 @@ enum AppSheet: Identifiable {
     case importFiles(URL?), openFile, linkFolder, installExtensionFile, importArchive
     case projects, pickProjectsFolder, agent, welcome, github, collab
     case openShare(String), joinLive(String)
-    case problems, findInFiles, outline, definitions(String, [CodeSymbol]), runConfig
+    case problems, findInFiles, outline, definitions(String, [CodeSymbol]), runConfig, templates
 
     var id: String {
         switch self {
@@ -96,6 +96,7 @@ enum AppSheet: Identifiable {
         case .outline: return "outline"
         case .definitions(let n, _): return "definitions" + n
         case .runConfig: return "runConfig"
+        case .templates: return "templates"
         }
     }
 }
@@ -255,6 +256,22 @@ final class Router: ObservableObject {
                 Workspace.shared.refresh()
                 self.revealRequest = file
                 if open { Minecraft.share(file) } else { self.flash("Saved \(file.lastPathComponent)") }
+            case .failure(let e): self.fail(e)
+            }
+        }
+    }
+
+    /// Folder → Null's Brawl mod package.
+    func packAssets(_ folder: URL) {
+        busy = "Packing \(folder.lastPathComponent)…"
+        ArchiveService.pack(folder, ext: "nullsbrawlassets") { [weak self] result in
+            guard let self else { return }
+            self.busy = nil
+            switch result {
+            case .success(let file):
+                Workspace.shared.refresh()
+                self.revealRequest = file
+                self.flash("Saved \(file.lastPathComponent)")
             case .failure(let e): self.fail(e)
             }
         }

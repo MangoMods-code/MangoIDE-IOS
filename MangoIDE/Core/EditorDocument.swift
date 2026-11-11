@@ -44,6 +44,18 @@ final class EditorDocument: ObservableObject, Identifiable {
     /// Other people's cursors in this file.
     private(set) var peers: [PeerCaret] = []
 
+    // MARK: Binary property lists
+
+    /// The file on disk is a binary plist. It's shown and edited as XML and converted back when saved.
+    @Published private(set) var isBinaryPlist = false
+
+    /// The bytes to write for this text.
+    private func encoded(_ text: String) throws -> Data {
+        guard isBinaryPlist else { return Data(text.utf8) }
+        let obj = try PropertyListSerialization.propertyList(from: Data(text.utf8), options: [], format: nil)
+        return try PropertyListSerialization.data(fromPropertyList: obj, format: .binary, options: 0)
+    }
+
     // MARK: Problems
 
     /// Errors and warnings found in this file (see DiagnosticsCenter).
@@ -145,7 +157,19 @@ final class EditorDocument: ObservableObject, Identifiable {
             let data = try Data(contentsOf: url, options: .mappedIfSafe)
             let before = text
             defer { if !isBinary, before != text { onLocalChange?(before, text); textChanged() } }
-            if data.prefix(8000).contains(0) {
+            isBinaryPlist = false
+            if MachO.isMachO(data.prefix(8)) {
+                isBinary = true
+                viewer = .macho
+                text = ""
+            } else if data.starts(with: Data("bplist".utf8)),
+                      let obj = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+                      let xml = try? PropertyListSerialization.data(fromPropertyList: obj, format: .xml, options: 0),
+                      let s = String(data: xml, encoding: .utf8) {
+                // A binary property list: shown and edited as XML, saved back as binary.
+                isBinaryPlist = true
+                text = s
+            } else if data.prefix(8000).contains(0) {
                 isBinary = true
                 viewer = .hex
                 text = ""
@@ -232,10 +256,15 @@ final class EditorDocument: ObservableObject, Identifiable {
             if changed { let old = text; text = out; contentVersion += 1; onLocalChange?(old, out) }
         }
         let target = url
+        let payload: Data
+        do { payload = try encoded(out) } catch {
+            saveError = "Not saved: this isn't a valid property list yet. \(error.localizedDescription)"
+            return false
+        }
         isDirty = false
         EditorDocument.saveQueue.async { [weak self] in
             var failure: String?
-            do { try out.write(to: target, atomically: true, encoding: .utf8) }
+            do { try payload.write(to: target, options: .atomic) }
             catch { failure = "Couldn't save: \(error.localizedDescription)" }
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -269,7 +298,7 @@ final class EditorDocument: ObservableObject, Identifiable {
         guard isDirty, !isBinary, loadError == nil else { return }
         autosaveWork?.cancel()
         do {
-            try text.write(to: url, atomically: true, encoding: .utf8); isDirty = false; clearDraft()
+            try encoded(text).write(to: url, options: .atomic); isDirty = false; clearDraft()
             NotificationCenter.default.post(name: .documentSaved, object: self)
         }
         catch { saveError = "Couldn't save: \(error.localizedDescription)" }

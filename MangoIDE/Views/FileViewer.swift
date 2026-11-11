@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 /// How a file that isn't editable text gets shown.
 enum FileViewerKind: Equatable {
-    case image, gif, svg, pdf, media, quickLook, hex
+    case image, gif, svg, pdf, media, quickLook, hex, macho
 
     /// Picked from the file type without reading the file, so big videos never get loaded into memory.
     static func forURL(_ url: URL) -> FileViewerKind? {
@@ -22,7 +22,8 @@ enum FileViewerKind: Equatable {
         let quickLookTypes: [UTType] = [.spreadsheet, .presentation, .rtf, .rtfd, .usdz, .threeDContent, .font, .epub]
         if quickLookTypes.contains(where: { type.conforms(to: $0) }) { return .quickLook }
         if ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key", "usdz", "reality", "ttf", "otf", "woff", "woff2", "epub", "ics", "vcf"].contains(ext) { return .quickLook }
-        if ArchiveService.isArchive(url) || ["ipa", "app", "dmg", "exe", "dll", "so", "dylib", "o", "a", "class", "jar", "wasm", "bin", "dat", "sqlite", "db", "sqlite3", "realm"].contains(ext) { return .hex }
+        if ["dylib", "o"].contains(ext) { return .macho }
+        if ArchiveService.isArchive(url) || ["ipa", "app", "dmg", "exe", "dll", "so", "a", "class", "jar", "wasm", "bin", "dat", "sqlite", "db", "sqlite3", "realm"].contains(ext) { return .hex }
         return nil
     }
 }
@@ -65,6 +66,7 @@ struct FileViewer: View {
                 case .media: MediaPlayerView(url: url)
                 case .quickLook: QuickLookView(url: url)
                 case .hex: HexView(url: url)
+                case .macho: MachOView(url: url)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

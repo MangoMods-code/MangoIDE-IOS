@@ -239,7 +239,7 @@ async function githubStart(req, res, url) {
   const q = new URLSearchParams({
     client_id: GITHUB_CLIENT_ID,
     redirect_uri: `${PUBLIC_URL}/auth/github/callback`,
-    scope: "read:user repo",
+    scope: "read:user repo workflow",
     state,
     allow_signup: "true",
   });

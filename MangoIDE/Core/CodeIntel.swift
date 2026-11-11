@@ -87,7 +87,9 @@ final class DiagnosticsCenter {
                 doc.setDiagnostics(list)
             }
         }
-        if lang.id == "json" {
+        if ["plist", "entitlements", "mobileconfig"].contains(doc.url.pathExtension.lowercased()) {
+            queue.async { deliver(Self.checkPlist(text)) }
+        } else if lang.id == "json" {
             queue.async { deliver(Self.checkJSON(text)) }
         } else if lang.id == "javascript" && !(RunnerAPI.isConfigured && AppSettings.shared.checkWithRunner) {
             queue.async { deliver(Self.checkJS(text)) }
@@ -109,6 +111,20 @@ final class DiagnosticsCenter {
             guard let msg = d["message"] as? String else { return nil }
             return Diagnostic(line: (d["line"] as? NSNumber)?.intValue ?? 1, col: (d["col"] as? NSNumber)?.intValue ?? 1,
                               severity: Diagnostic.Severity(rawValue: d["severity"] as? String ?? "error") ?? .error, message: msg)
+        }
+    }
+
+    static func checkPlist(_ text: String) -> [Diagnostic] {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        do {
+            _ = try PropertyListSerialization.propertyList(from: Data(text.utf8), options: [], format: nil)
+            return []
+        } catch {
+            let ns = error as NSError
+            let desc = (ns.userInfo["NSDebugDescription"] as? String) ?? ns.localizedDescription
+            var line = 1
+            if let m = desc.range(of: #"line (\d+)"#, options: .regularExpression), let n = Int(desc[m].filter(\.isNumber)) { line = max(1, n) }
+            return [Diagnostic(line: line, col: 1, severity: .error, message: desc)]
         }
     }
 

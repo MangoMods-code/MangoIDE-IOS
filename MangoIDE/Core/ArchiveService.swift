@@ -9,7 +9,7 @@ enum ArchiveError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupported(let ext): return ".\(ext) files can't be opened here. MangoIDE supports .zip and .rar."
+        case .unsupported(let ext): return ".\(ext) files can't be opened here. MangoIDE supports .zip, .rar and .nullsbrawlassets."
         case .needsPassword: return "This archive is password protected."
         case .wrongPassword: return "That password didn't work."
         case .failed(let m): return m
@@ -19,7 +19,7 @@ enum ArchiveError: LocalizedError {
 
 /// Extracting .zip/.rar and making .zip files. Work runs off the main thread; results come back on it.
 enum ArchiveService {
-    static let extractable: Set<String> = ["zip", "rar", "cbz", "cbr", "mcaddon", "mcpack", "mcworld", "mctemplate"]
+    static let extractable: Set<String> = ["zip", "rar", "cbz", "cbr", "mcaddon", "mcpack", "mcworld", "mctemplate", "nullsbrawlassets"]
 
     static func isArchive(_ url: URL) -> Bool { extractable.contains(url.pathExtension.lowercased()) }
 
@@ -37,7 +37,7 @@ enum ArchiveService {
             do {
                 try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
                 switch archive.pathExtension.lowercased() {
-                case "zip", "cbz", "mcpack", "mcworld", "mctemplate":
+                case "zip", "cbz", "mcpack", "mcworld", "mctemplate", "nullsbrawlassets":
                     try FileManager.default.unzipItem(at: archive, to: dest)
                 case "mcaddon":
                     try FileManager.default.unzipItem(at: archive, to: dest)
@@ -48,7 +48,8 @@ enum ArchiveService {
                     throw ArchiveError.unsupported(archive.pathExtension)
                 }
                 SafePath.removeEscapingLinks(in: dest)
-                let result = flattenSingleFolder(dest)
+                // A mod package's folder layout matters, so it's kept exactly as it was.
+                let result = archive.pathExtension.lowercased() == "nullsbrawlassets" ? dest : flattenSingleFolder(dest)
                 DispatchQueue.main.async { completion(.success(result)) }
             } catch {
                 try? FileManager.default.removeItem(at: dest)
@@ -84,6 +85,32 @@ enum ArchiveService {
             } catch {
                 try? fm.removeItem(at: zipURL)
                 DispatchQueue.main.async { completion(.failure(ArchiveError.failed("Couldn't make the zip: \(error.localizedDescription)"))) }
+            }
+        }
+    }
+
+    /// Packs a folder's contents (not the folder itself) into "<folder>.<ext>" next to it, e.g. a
+    /// .nullsbrawlassets mod. MangoIDE's own notes (.mango), git data and .DS_Store are left out.
+    static func pack(_ folder: URL, ext: String, completion: @escaping (Result<URL, Error>) -> Void) {
+        queue.async {
+            let fm = FileManager.default
+            let dest = Workspace.shared.uniqueURL(in: folder.deletingLastPathComponent(), name: folder.lastPathComponent + "." + ext)
+            let staging = fm.temporaryDirectory.appendingPathComponent("pack-" + UUID().uuidString, isDirectory: true)
+            defer { try? fm.removeItem(at: staging) }
+            do {
+                try fm.copyItem(at: folder, to: staging)
+                if let e = fm.enumerator(at: staging, includingPropertiesForKeys: nil) {
+                    var junk: [URL] = []
+                    for case let u as URL in e where [".mango", ".git", ".DS_Store", "__MACOSX"].contains(u.lastPathComponent) {
+                        junk.append(u); e.skipDescendants()
+                    }
+                    for u in junk { try? fm.removeItem(at: u) }
+                }
+                try fm.zipItem(at: staging, to: dest, shouldKeepParent: false, compressionMethod: .deflate)
+                DispatchQueue.main.async { completion(.success(dest)) }
+            } catch {
+                try? fm.removeItem(at: dest)
+                DispatchQueue.main.async { completion(.failure(ArchiveError.failed("Couldn't make the package: \(error.localizedDescription)"))) }
             }
         }
     }

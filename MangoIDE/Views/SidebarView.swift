@@ -412,6 +412,7 @@ struct SidebarView: View {
         } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
         Button { router.compress([item.url]) } label: { Label("Compress to ZIP", systemImage: "archivebox") }
         if item.isDirectory {
+            Button { router.packAssets(item.url) } label: { Label("Pack as .nullsbrawlassets", systemImage: "shippingbox.and.arrow.backward") }
             Menu {
                 Button { router.exportMinecraft(item.url, open: true) } label: { Label("Export & Open in Minecraft", systemImage: "play.circle") }
                 Button { router.exportMinecraft(item.url, open: false) } label: { Label("Export .mcpack / .mcaddon", systemImage: "shippingbox") }
@@ -495,7 +496,10 @@ enum FileIcons {
         case "md", "markdown": return ("doc.richtext", .gray)
         case "txt": return ("doc.text", .gray)
         case "png", "jpg", "jpeg", "gif", "heic", "webp", "svg": return ("photo", .pink)
-        case "zip", "tar", "gz", "rar": return ("doc.zipper", .brown)
+        case "zip", "tar", "gz", "rar", "nullsbrawlassets": return ("doc.zipper", .brown)
+        case "dylib", "o": return ("gearshape.2", .gray)
+        case "plist", "entitlements", "mobileconfig": return ("list.bullet.rectangle", .teal)
+        case "x", "xm", "xi", "xmi": return ("wrench.and.screwdriver", .orange)
         case "mcaddon", "mcpack", "mcworld", "mctemplate": return ("cube.fill", .green)
         case "mcfunction": return ("terminal", .green)
         case "sh", "bash", "zsh": return ("terminal", .green)

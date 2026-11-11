@@ -179,7 +179,7 @@ enum LanguageLibrary {
         LanguageDef(id: "html", name: "HTML", extensions: ["html", "htm", "xhtml"],
                     blockCommentStart: "<!--", blockCommentEnd: "-->", quotes: ["\"", "'"], runner: "html",
                     template: "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>MangoIDE</title>\n  <style>\n    body { font-family: -apple-system, sans-serif; padding: 24px; }\n    h1 { color: #ff9a1a; }\n  </style>\n</head>\n<body>\n  <h1>Hello from MangoIDE!</h1>\n  <script>\n    console.log(\"Page loaded\");\n  </script>\n</body>\n</html>\n", markup: true),
-        LanguageDef(id: "xml", name: "XML", extensions: ["xml", "plist", "svg", "xib", "storyboard"],
+        LanguageDef(id: "xml", name: "XML", extensions: ["xml", "plist", "svg", "xib", "storyboard", "entitlements", "mobileconfig"],
                     blockCommentStart: "<!--", blockCommentEnd: "-->", quotes: ["\"", "'"], markup: true),
         LanguageDef(id: "css", name: "CSS", extensions: ["css", "scss", "less"],
                     keywords: ["important","media","import","keyframes","from","to","root","hover","before","after","active","focus"],

@@ -146,6 +146,15 @@ struct NewProjectSheet: View {
                     }
                 }
                 Section("Templates") {
+                    Button { router.show(.templates) } label: {
+                        HStack {
+                            Image(systemName: "square.grid.2x2.fill").foregroundStyle(.pink).font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Browse All Templates").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                Text("Ready-made projects: games, tools, algorithms, iOS tweaks and more").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     Button { createMinecraft() } label: {
                         HStack {
                             Image(systemName: "cube.fill").foregroundStyle(.green).font(.title3)

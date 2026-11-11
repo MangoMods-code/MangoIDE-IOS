@@ -55,6 +55,7 @@ final class SyntaxHighlighter {
             r.number = rx("(?<![\\w.])(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b")
         }
         if lang.decorators ?? false { r.decorator = rx("@[A-Za-z_][A-Za-z0-9_.]*") }
+        if lang.id == "logos" { r.decorator = rx("%[a-z]+\\b|@[a-z]+\\b") }   // %hook, %orig, @interface…
         if lang.preprocessor ?? false { r.preprocessor = rx("^[ \\t]*#[ \\t]*[a-z]+", [.anchorsMatchLines]) }
         if lang.markup ?? false {
             r.tag = rx("</?[A-Za-z][\\w:.-]*|/?>|<!DOCTYPE[^>]*>", [.caseInsensitive])

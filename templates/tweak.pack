@@ -1,0 +1,104 @@
+=== theos-tweak | iOS Tweak (Theos) | iOS Tweaks | wrench.and.screwdriver.fill | A Logos tweak with a Makefile, control file, filter plist and a GitHub build that makes the .dylib.
+@entry Tweak.x
+--- Tweak.x
+// __PROJECT__: a starter tweak written in Logos.
+// %hook picks a class, %orig calls the original code, %end closes the hook.
+#import <UIKit/UIKit.h>
+
+%hook UIViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    NSLog(@"[__PROJECT__] %@ appeared", NSStringFromClass([self class]));
+}
+
+%end
+
+%ctor {
+    NSLog(@"[__PROJECT__] loaded into %@", [[NSBundle mainBundle] bundleIdentifier]);
+}
+--- Makefile
+# Builds with Theos (https://theos.dev). See README.md for building on GitHub.
+TARGET := iphone:clang:latest:14.0
+ARCHS = arm64 arm64e
+INSTALL_TARGET_PROCESSES = SpringBoard
+
+include $(THEOS)/makefiles/common.mk
+
+TWEAK_NAME = __PROJECT__
+
+__PROJECT___FILES = Tweak.x
+__PROJECT___CFLAGS = -fobjc-arc
+__PROJECT___FRAMEWORKS = UIKit
+
+include $(THEOS_MAKE_PATH)/tweak.mk
+--- control
+Package: com.yourname.__PROJECT__
+Name: __PROJECT__
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: A tweak made with MangoIDE.
+Maintainer: Your Name
+Author: Your Name
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000)
+--- __PROJECT__.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Filter</key>
+	<dict>
+		<key>Bundles</key>
+		<array>
+			<string>com.apple.springboard</string>
+		</array>
+	</dict>
+</dict>
+</plist>
+--- .github/workflows/build.yml
+# Builds the tweak on GitHub every time you push. Download the result from the run's Artifacts.
+name: Build tweak
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install ldid make xz
+      - name: Get Theos
+        run: git clone --recursive --depth 1 https://github.com/theos/theos.git "$HOME/theos"
+      - name: Build
+        run: |
+          export THEOS="$HOME/theos"
+          export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
+          make package FINALPACKAGE=1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: __PROJECT__
+          path: |
+            packages/*.deb
+            .theos/obj/**/*.dylib
+--- README.md
+# __PROJECT__
+
+An iOS tweak written in [Logos](https://theos.dev/docs/logos-syntax).
+
+| File | What it's for |
+| --- | --- |
+| `Tweak.x` | Your hooks |
+| `__PROJECT__.plist` | Which apps the tweak loads into (bundle IDs) |
+| `control` | Package name, version and description |
+| `Makefile` | Build settings for Theos |
+
+## Building
+
+An iPhone can't compile tweaks, so the project builds on GitHub:
+
+1. In MangoIDE open **GitHub** and **Publish to GitHub**.
+2. GitHub builds it automatically (the **Actions** tab shows progress).
+3. Open the finished run and download the artifact: it holds the `.deb` and the `.dylib`.
+
+Change `com.apple.springboard` in `__PROJECT__.plist` to the bundle ID of the app you want to hook.
