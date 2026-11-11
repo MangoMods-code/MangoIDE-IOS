@@ -317,8 +317,14 @@ func minimax(_ b: inout [Character], _ player: Character) -> (score: Int, move: 
 }
 
 func draw(_ b: [Character]) {
-    let rows = (0..<3).map { r in
-        (0..<3).map { c in b[r * 3 + c] == " " ? String(r * 3 + c + 1) : String(b[r * 3 + c]) }.joined(separator: " | ")
+    var rows: [String] = []
+    for r in 0..<3 {
+        var cells: [String] = []
+        for c in 0..<3 {
+            let i = r * 3 + c
+            cells.append(b[i] == " " ? String(i + 1) : String(b[i]))
+        }
+        rows.append(cells.joined(separator: " | "))
     }
     print("\n" + rows.joined(separator: "\n---------\n") + "\n")
 }
@@ -1719,9 +1725,13 @@ let numbers = Array(1...10)
 print("slices:     \(numbers.prefix(3)) \(numbers.suffix(2)) \(numbers[2...4])")
 print("zip:        \(Array(zip(people.map(\.name), numbers)).prefix(2))")
 print("enumerated: " + people.enumerated().map { "\($0.offset + 1).\($0.element.name)" }.joined(separator: " "))
-print("chunks:     \(stride(from: 0, to: numbers.count, by: 4).map { Array(numbers[$0..<min($0 + 4, numbers.count)]) })")
+var chunks: [[Int]] = []
+for start in stride(from: 0, to: numbers.count, by: 4) { chunks.append(Array(numbers[start..<min(start + 4, numbers.count)])) }
+print("chunks:     \(chunks)")
 print("flatMap:    \([[1, 2], [3], [4, 5]].flatMap { $0 })")
-print("lazy:       first even square over 50 is \(numbers.lazy.map { $0 * $0 }.first { $0 > 50 && $0 % 2 == 0 } ?? 0)")
+let squares = numbers.lazy.map { $0 * $0 }
+let firstBig: Int = squares.first { $0 > 50 && $0 % 2 == 0 } ?? 0
+print("lazy:       first even square over 50 is \(firstBig)")
 
 === codable-json | JSON with Codable | Learn Swift | curlybraces.square.fill | Turn JSON text into Swift types and back with almost no code.
 --- main.swift
