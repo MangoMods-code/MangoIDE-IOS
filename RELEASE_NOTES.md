@@ -1,9 +1,7 @@
 What's new
-• Template gallery: 51 ready-made Python projects (games, tools, data, algorithms, lessons, multi-file apps). Find it on the start screen or under New Project
-• iOS tweak projects: a Theos template with Logos highlighting for .x and .xm files, and a GitHub build that produces the .dylib
-• Plist files: binary plists now open as readable XML, save back in their original format, and show errors as you edit
-• Dylib files: tap one to see its architectures, minimum iOS version, the libraries it links against, and whether it's signed or encrypted
-• Null's Brawl mods: extract .nullsbrawlassets packages and pack any folder back into one from the explorer
+• 46 JavaScript templates: games, tools, data, algorithms and lessons that run right on your phone
+• 43 Swift templates: starter programs, games, tools, algorithms and a Learn Swift series
+• The template gallery now has 141 projects across Python, JavaScript, Swift and iOS tweaks, with a language filter
 
 Improved
-• GitHub sign-in now asks for permission to update workflow files, so tweak projects can be published. Sign out and back in to get it
+• JavaScript on the phone: timers, promises and async/await now run in the right order, and console.log prints lists and objects on one line when they're short
