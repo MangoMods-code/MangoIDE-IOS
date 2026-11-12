@@ -82,14 +82,12 @@ const LANGS = {
   commonlisp: { aliases: ["lisp", "sbcl", "cl"], ext: "lisp", run: ["sbcl", "--script", "{file}"], version: "sbcl --version" },
   guile:      { aliases: ["scm"], ext: "scm", run: ["guile", "--no-auto-compile", "-s", "{file}"], version: "guile --version | head -1" },
   forth:      { aliases: ["gforth"], ext: "fth", run: ["gforth", "{file}", "-e", "bye"], version: "gforth --version 2>&1" },
-  smalltalk:  { aliases: ["gst", "st"], ext: "st", run: ["gst", "{file}"], version: "gst --version | head -1" },
   sml:        { aliases: ["standardml", "polyml"], ext: "sml", run: ["poly", "--script", "{file}"], version: "poly -v" },
   raku:       { aliases: ["perl6", "rakudo"], ext: "raku", run: ["raku", "{file}"], version: "raku --version | head -1" },
   haxe:       { aliases: ["hx"], ext: "hx", run: ["sh", "-c", "cd {dir} && { cp -f {file} Main.hx 2>/dev/null; haxe --run Main; }"], version: "haxe --version" },
   vala:       { aliases: [], ext: "vala", compile: ["valac", "-o", "{dir}/a.out", "{file}"], run: ["{dir}/a.out"], version: "valac --version" },
   basic:      { aliases: ["yabasic", "bas"], ext: "bas", run: ["yabasic", "{file}"], version: "command -v yabasic" },
-  vbnet:      { aliases: ["vb", "visualbasic"], ext: "vb", compile: ["vbnc", "-nologo", "-out:{dir}/a.exe", "{file}"], run: ["mono", "{dir}/a.exe"], version: "command -v vbnc" },
-  brainfuck:  { aliases: ["bf"], ext: "bf", run: ["bf", "{file}"], version: "command -v bf" },
+  brainfuck:  { aliases: ["bf"], ext: "bf", run: ["node", "/app/bf.js", "{file}"], version: "test -f /app/bf.js && node --version" },
   rexx:       { aliases: ["regina"], ext: "rexx", run: ["rexx", "{file}"], version: "command -v rexx" },
   algol68:    { aliases: ["a68", "a68g"], ext: "a68", run: ["a68g", "{file}"], version: "a68g --version | head -1" },
   pike:       { aliases: [], ext: "pike", run: ["pike8.0", "{file}"], version: "command -v pike8.0" },
@@ -108,7 +106,7 @@ const LANGS = {
 const RUNTIMES = [];
 for (const [name, def] of Object.entries(LANGS)) {
   try {
-    const v = execSync(def.version, { stdio: ["ignore", "pipe", "pipe"], timeout: 15000, shell: "/bin/bash" })
+    const v = execSync("set -o pipefail; " + def.version, { stdio: ["ignore", "pipe", "pipe"], timeout: 15000, shell: "/bin/bash" })
       .toString().trim().split("\n")[0].replace(/^[^\d]*/, "").split(/\s/)[0] || "installed";
     def.versionString = v;
     RUNTIMES.push({ language: name, version: v, aliases: def.aliases, runtime: name });
@@ -384,4 +382,7 @@ http.createServer((req, res) => {
     return;
   }
   send(res, 404, { message: "Not found" });
-}).listen(PORT, () => console.log(`MangoIDE runner listening on ${PORT}`));
+}).listen(PORT, () => {
+  console.log(`MangoIDE runner listening on ${PORT}`);
+  if (process.env.SELFTEST !== "0") setTimeout(() => require("./selftest")(execute, LANGS).catch((e) => console.log("Self-test error:", e.message)), 3000);
+});

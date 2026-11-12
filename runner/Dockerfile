@@ -35,11 +35,12 @@ RUN curl -fsSL -o /tmp/kotlin.zip https://github.com/JetBrains/kotlin/releases/d
     && ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc || echo "skipped kotlin"
 
 # More languages (each skipped quietly if its package is unavailable).
-RUN apt-get update && for p in fish zsh sbcl guile-3.0 gforth gnu-smalltalk polyml rakudo haxe valac yabasic bf \
-      regina-rexx algol68g pike8.0 fennel jq bc m4 gobjc libgnustep-base-dev mono-vbnc python3-pip libicu72; do \
+RUN apt-get update && for p in fish zsh sbcl guile-3.0 gforth polyml rakudo haxe valac yabasic \
+      regina-rexx algol68g pike8.0 jq bc m4 gobjc libgnustep-base-dev python3-pip libicu72 luarocks; do \
       apt-get install -y --no-install-recommends $p || echo "skipped $p"; \
     done && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir --break-system-packages hy || echo "skipped hy"
+RUN luarocks --lua-version 5.4 install fennel || luarocks install fennel || echo "skipped fennel"
 RUN curl -fsSL -o /tmp/v.zip https://github.com/vlang/v/releases/latest/download/v_linux.zip \
     && unzip -q /tmp/v.zip -d /opt && rm /tmp/v.zip && chmod -R a+rwX /opt/v \
     && ln -s /opt/v/v /usr/local/bin/v || echo "skipped v"

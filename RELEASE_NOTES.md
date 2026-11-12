@@ -1,6 +1,6 @@
 What's new
 • 138 more languages and file types: the editor now colors 226 in total, up from 88
-• New languages you can run: Raku, Haxe, Vala, Forth, Smalltalk, Common Lisp, Standard ML, CoffeeScript, Fennel, Hy, Nushell, Visual Basic .NET, REXX, ALGOL 68, Pike, Brainfuck, jq, bc, sed and M4
+• New languages you can run: Raku, Haxe, Vala, Forth, Common Lisp, Standard ML, CoffeeScript, Fennel, Hy, Nushell, REXX, ALGOL 68, Pike, Brainfuck, jq, bc, sed and M4
 • Now runnable too: Objective-C, V, PowerShell, Fish and BASIC
 • Game and mod scripting: GDScript, Ren'Py, GameMaker, Papyrus, SQF, Pawn/SourcePawn, AngelScript, UnrealScript, Squirrel, Valve KeyValues
 • Reverse engineering and security: Smali, LLVM IR, YARA and Snort rules, debugger scripts, certificates and keys
@@ -11,4 +11,4 @@ Improved
 • Opening a file picks its language faster
 
 Note
-• The newly runnable languages need your runner server to finish updating first. Some may not be available if their tools couldn't be installed there.
+• The newly runnable languages need your runner server to finish updating first. It updates on its own.
