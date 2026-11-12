@@ -87,8 +87,11 @@ final class ExtensionManager: ObservableObject {
             return language(id: id)
         }
         if ext.isEmpty { return .plain }
-        return allLanguages.first { $0.extensions.contains(ext) }
-            ?? allLanguages.first { $0.extensions.contains(ext.lowercased()) }
+        // Languages from installed extensions win, then the built-in table.
+        let custom = active.flatMap { $0.languages ?? [] }
+        let lower = ext.lowercased()
+        return custom.first { $0.extensions.contains(ext) } ?? LanguageLibrary.byExtension[ext]
+            ?? custom.first { $0.extensions.contains(lower) } ?? LanguageLibrary.byExtension[lower]
             ?? .plain
     }
 

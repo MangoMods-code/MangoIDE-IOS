@@ -34,8 +34,22 @@ RUN curl -fsSL -o /tmp/kotlin.zip https://github.com/JetBrains/kotlin/releases/d
     && unzip -q /tmp/kotlin.zip -d /opt && rm /tmp/kotlin.zip \
     && ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc || echo "skipped kotlin"
 
-# TypeScript runner and the Prettier formatter.
-RUN npm install -g tsx@4 prettier@3 && npm cache clean --force
+# More languages (each skipped quietly if its package is unavailable).
+RUN apt-get update && for p in fish zsh sbcl guile-3.0 gforth gnu-smalltalk polyml rakudo haxe valac yabasic bf \
+      regina-rexx algol68g pike8.0 fennel jq bc m4 gobjc libgnustep-base-dev mono-vbnc python3-pip libicu72; do \
+      apt-get install -y --no-install-recommends $p || echo "skipped $p"; \
+    done && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-cache-dir --break-system-packages hy || echo "skipped hy"
+RUN curl -fsSL -o /tmp/v.zip https://github.com/vlang/v/releases/latest/download/v_linux.zip \
+    && unzip -q /tmp/v.zip -d /opt && rm /tmp/v.zip && chmod -R a+rwX /opt/v \
+    && ln -s /opt/v/v /usr/local/bin/v || echo "skipped v"
+RUN mkdir -p /opt/pwsh && curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-x64.tar.gz | tar -xz -C /opt/pwsh \
+    && chmod +x /opt/pwsh/pwsh && ln -s /opt/pwsh/pwsh /usr/local/bin/pwsh || echo "skipped powershell"
+RUN curl -fsSL https://github.com/nushell/nushell/releases/download/0.99.1/nu-0.99.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /opt \
+    && ln -s /opt/nu-0.99.1-x86_64-unknown-linux-musl/nu /usr/local/bin/nu || echo "skipped nushell"
+
+# TypeScript runner, CoffeeScript and the Prettier formatter.
+RUN npm install -g tsx@4 prettier@3 coffeescript@2 && npm cache clean --force
 
 # Formatters and checkers for Format Document and error underlines (each skipped if unavailable).
 RUN apt-get update && for p in clang-format rustfmt black shfmt; do \

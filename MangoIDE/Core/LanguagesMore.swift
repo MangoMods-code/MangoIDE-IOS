@@ -2,7 +2,7 @@ import Foundation
 
 /// Extra languages and file formats. Same shape as LanguageLibrary.core; runner names match the runner server.
 extension LanguageLibrary {
-    private static func L(_ id: String, _ name: String, _ ext: [String], kw: [String] = [], types: [String] = [],
+    static func L(_ id: String, _ name: String, _ ext: [String], kw: [String] = [], types: [String] = [],
                           lit: [String] = [], line: String? = nil, block: (String, String)? = nil,
                           quotes: [String] = ["\"", "'"], runner: String? = nil, template: String? = nil,
                           markup: Bool = false, deco: Bool = false, pre: Bool = false, ci: Bool = false) -> LanguageDef {
@@ -16,7 +16,7 @@ extension LanguageLibrary {
         // Apple & systems
         L("objc", "Objective-C", ["m", "mm"], kw: ["@interface", "@implementation", "@end", "@property", "@synthesize", "@protocol", "@class", "@selector", "self", "super", "if", "else", "for", "while", "return", "static", "const", "void", "id", "nil", "YES", "NO", "import", "typedef", "struct"],
           types: ["NSString", "NSArray", "NSDictionary", "NSObject", "NSInteger", "BOOL", "int", "float", "double", "char"], lit: ["nil", "YES", "NO", "NULL"],
-          line: "//", block: ("/*", "*/"), runner: "objective-c", template: "#import <Foundation/Foundation.h>\n\nint main(void) {\n    @autoreleasepool {\n        NSLog(@\"Hello from MangoIDE!\");\n    }\n    return 0;\n}\n", pre: true),
+          line: "//", block: ("/*", "*/"), runner: "objective-c", template: "#import <Foundation/Foundation.h>\n\nint main(void) {\n    NSAutoreleasePool *pool = [NSAutoreleasePool new];\n    NSString *name = @\"MangoIDE\";\n    printf(\"Hello from %s!\\n\", [name UTF8String]);\n    [pool drain];\n    return 0;\n}\n", pre: true),
         L("logos", "Logos (iOS Tweak)", ["x", "xm", "xi", "xmi"],
           kw: ["%hook", "%end", "%orig", "%group", "%ctor", "%dtor", "%new", "%init", "%c", "%log", "%subclass", "%property", "%hookf", "%config",
                "@interface", "@implementation", "@end", "@property", "@synthesize", "@protocol", "@class", "@selector", "self", "super", "if", "else", "for", "while",
@@ -37,7 +37,7 @@ extension LanguageLibrary {
           line: ";;", block: ("(;", ";)"), quotes: ["\""]),
 
         // JVM / .NET / functional
-        L("groovy", "Groovy", ["groovy", "gradle", "gvy"], kw: ["def", "class", "if", "else", "for", "while", "return", "import", "package", "new", "println", "static", "void", "try", "catch", "in"],
+        L("groovy", "Groovy", ["groovy", "gradle", "gvy", "gsh", "nf"], kw: ["def", "class", "if", "else", "for", "while", "return", "import", "package", "new", "println", "static", "void", "try", "catch", "in"],
           lit: ["true", "false", "null"], line: "//", block: ("/*", "*/"), quotes: ["'''", "\"\"\"", "\"", "'"], runner: "groovy",
           template: "def name = 'MangoIDE'\nprintln \"Hello from ${name}!\"\n", deco: true),
         L("clojure", "Clojure", ["clj", "cljs", "cljc", "edn"], kw: ["defn", "def", "let", "fn", "if", "do", "when", "cond", "loop", "recur", "ns", "require", "println", "map", "filter", "reduce"],
@@ -53,7 +53,7 @@ extension LanguageLibrary {
           template: "-module(main).\n-export([main/1]).\n\nmain(_) ->\n    io:format(\"Hello from MangoIDE!~n\").\n"),
         L("elm", "Elm", ["elm"], kw: ["module", "exposing", "import", "type", "alias", "case", "of", "let", "in", "if", "then", "else"], types: ["Int", "Float", "String", "Bool", "List", "Maybe", "Html"],
           lit: ["True", "False"], line: "--", block: ("{-", "-}"), quotes: ["\"\"\"", "\""]),
-        L("scheme", "Scheme / Racket / Lisp", ["scm", "ss", "rkt", "lisp", "lsp", "cl", "el"], kw: ["define", "lambda", "let", "if", "cond", "else", "begin", "defun", "setq", "displayln", "display", "require", "provide"],
+        L("scheme", "Scheme / Racket / Emacs Lisp", ["scm", "ss", "rkt", "sld", "el"], kw: ["define", "lambda", "let", "if", "cond", "else", "begin", "defun", "setq", "displayln", "display", "require", "provide"],
           lit: ["#t", "#f", "nil", "t"], line: ";", block: ("#|", "|#"), quotes: ["\""], runner: "racket", template: "#lang racket\n(define name \"MangoIDE\")\n(displayln (string-append \"Hello from \" name \"!\"))\n"),
         L("prolog", "Prolog", ["pro", "prolog"], kw: ["is", "not", "fail", "true", "write", "nl", "format", "initialization", "halt"],
           line: "%", block: ("/*", "*/"), runner: "prolog", template: ":- initialization(main).\nmain :- write('Hello from MangoIDE!'), nl, halt.\n"),
@@ -63,7 +63,7 @@ extension LanguageLibrary {
         L("powershell", "PowerShell", ["ps1", "psm1", "psd1"], kw: ["function", "param", "if", "elseif", "else", "foreach", "for", "while", "return", "Write-Host", "Write-Output", "Get-ChildItem", "Set-Location"],
           lit: ["$true", "$false", "$null"], line: "#", block: ("<#", "#>"), runner: "powershell", template: "$name = \"MangoIDE\"\nWrite-Output \"Hello from $name!\"\n", ci: true),
         L("batch", "Batch", ["bat", "cmd"], kw: ["echo", "set", "if", "else", "goto", "call", "for", "in", "do", "exit", "rem", "setlocal", "endlocal"], line: "REM", quotes: ["\""], ci: true),
-        L("fish", "Fish", ["fish"], kw: ["function", "end", "if", "else", "for", "in", "while", "set", "echo", "return", "switch", "case"], lit: ["true", "false"], line: "#", runner: "bash"),
+        L("fish", "Fish", ["fish"], kw: ["function", "end", "if", "else", "for", "in", "while", "set", "echo", "return", "switch", "case"], lit: ["true", "false"], line: "#", runner: "fish"),
         L("tcl", "Tcl", ["tcl"], kw: ["proc", "set", "if", "else", "elseif", "foreach", "for", "while", "return", "puts", "expr"], line: "#", quotes: ["\""], runner: "tcl", template: "set name \"MangoIDE\"\nputs \"Hello from $name!\"\n"),
         L("awk", "AWK", ["awk"], kw: ["BEGIN", "END", "print", "printf", "if", "else", "for", "while", "function", "return", "next"], line: "#", quotes: ["\""], runner: "awk", template: "BEGIN { name = \"MangoIDE\"; print \"Hello from \" name \"!\" }\n"),
         L("matlab", "MATLAB / Octave", ["matlab", "oct"], kw: ["function", "end", "if", "elseif", "else", "for", "while", "return", "disp", "fprintf", "switch", "case"],
@@ -72,8 +72,8 @@ extension LanguageLibrary {
           line: "*>", quotes: ["\"", "'"], runner: "cobol", template: "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO.\n       PROCEDURE DIVISION.\n           DISPLAY 'Hello from MangoIDE!'.\n           STOP RUN.\n", ci: true),
         L("ada", "Ada", ["adb", "ads", "ada"], kw: ["procedure", "is", "begin", "end", "with", "use", "if", "then", "else", "loop", "for", "while", "function", "return", "package", "body"],
           lit: ["True", "False", "null"], line: "--", quotes: ["\""], runner: "ada", template: "with Ada.Text_IO; use Ada.Text_IO;\n\nprocedure Main is\nbegin\n   Put_Line (\"Hello from MangoIDE!\");\nend Main;\n", ci: true),
-        L("basic", "BASIC / VB", ["bas", "vb", "vbs"], kw: ["Dim", "As", "If", "Then", "Else", "End", "For", "Next", "While", "Wend", "Sub", "Function", "Print", "Return", "Module", "Console"],
-          lit: ["True", "False", "Nothing"], line: "'", quotes: ["\""], runner: "basic", ci: true),
+        L("basic", "BASIC", ["bas", "vbs", "yab", "bi"], kw: ["Dim", "As", "If", "Then", "Else", "End", "For", "Next", "While", "Wend", "Sub", "Function", "Print", "Return", "Module", "Console"],
+          lit: ["True", "False", "Nothing"], line: "'", quotes: ["\""], runner: "basic", template: "name$ = \"MangoIDE\"\nprint \"Hello from \", name$, \"!\"\n", ci: true),
 
         // Web & config
         L("vue", "Vue", ["vue"], block: ("<!--", "-->"), quotes: ["\"", "'", "`"], markup: true),
@@ -113,7 +113,7 @@ extension LanguageLibrary {
         L("mclang", "Minecraft Lang", ["lang"], line: "##", quotes: []),
 
         // Graphics & hardware
-        L("glsl", "GLSL / HLSL / Metal", ["glsl", "vert", "frag", "comp", "geom", "hlsl", "fx", "metal", "wgsl", "shader"], kw: ["uniform", "in", "out", "inout", "layout", "void", "return", "if", "else", "for", "while", "struct", "const", "kernel", "fragment", "vertex", "fn", "let", "var"],
+        L("glsl", "GLSL / HLSL / Metal", ["glsl", "vert", "frag", "comp", "geom", "hlsl", "fx", "metal", "wgsl", "shader", "gdshader", "vsh", "fsh", "cg", "shaderlab"], kw: ["uniform", "in", "out", "inout", "layout", "void", "return", "if", "else", "for", "while", "struct", "const", "kernel", "fragment", "vertex", "fn", "let", "var"],
           types: ["float", "vec2", "vec3", "vec4", "mat3", "mat4", "int", "bool", "sampler2D", "float2", "float3", "float4", "half", "texture2d", "f32", "vec4f"], line: "//", block: ("/*", "*/"), pre: true),
         L("verilog", "Verilog / SystemVerilog", ["sv", "svh", "vh"], kw: ["module", "endmodule", "input", "output", "inout", "wire", "reg", "logic", "always", "assign", "begin", "end", "if", "else", "case", "endcase", "posedge", "negedge", "parameter"],
           line: "//", block: ("/*", "*/"), quotes: ["\""]),
@@ -132,6 +132,21 @@ extension LanguageLibrary {
         "jenkinsfile": "groovy", "vagrantfile": "ruby",
         ".env": "dotenv", ".gitignore": "ignore", ".dockerignore": "ignore", ".gitattributes": "ignore", ".editorconfig": "ignore",
         ".bashrc": "shell", ".zshrc": "shell", ".profile": "shell", ".bash_profile": "shell",
-        "procfile": "yaml", "package.swift": "swift", "license": "plaintext", "readme": "markdown"
+        "procfile": "yaml", "package.swift": "swift", "license": "plaintext", "readme": "markdown",
+        "go.mod": "gomod", "go.sum": "gomod", "go.work": "gomod",
+        "justfile": "just", ".justfile": "just", "meson.build": "meson", "meson_options.txt": "meson", "meson.options": "meson",
+        "build": "starlark", "build.bazel": "starlark", "workspace": "starlark", "workspace.bazel": "starlark", "module.bazel": "starlark", "tiltfile": "starlark", "buck": "starlark",
+        "sconstruct": "python", "sconscript": "python", "snakefile": "python", "wscript": "python", "pipfile": "toml",
+        "berksfile": "ruby", "guardfile": "ruby", "capfile": "ruby", "appfile": "ruby", "matchfile": "ruby", "dangerfile": "ruby", "steepfile": "ruby", "podfile.lock": "yaml",
+        "pkgbuild": "shell", "apkbuild": "shell", ".zprofile": "shell", ".zshenv": "shell", ".bash_aliases": "shell", ".xinitrc": "shell",
+        "earthfile": "dockerfile", "kconfig": "kconfig", "crontab": "cron", "caddyfile": "nginx", "nginx.conf": "nginx",
+        ".htaccess": "apache", "httpd.conf": "apache", "apache2.conf": "apache", "ssh_config": "ssh-config", "sshd_config": "ssh-config",
+        ".vimrc": "vim", "_vimrc": "vim", ".gvimrc": "vim", ".gdbinit": "frida", ".lldbinit": "frida",
+        ".gitconfig": "toml", ".gitmodules": "toml", ".npmrc": "properties", ".yarnrc": "properties", ".curlrc": "properties", ".wgetrc": "properties",
+        ".prettierrc": "json", ".eslintrc": "json", ".babelrc": "json", ".swcrc": "json", ".stylelintrc": "json", ".jshintrc": "json", "composer.lock": "json", "flake.lock": "json",
+        ".clang-format": "yaml", ".clang-tidy": "yaml", "pubspec.lock": "yaml", "yarn.lock": "yaml", ".yamllint": "yaml",
+        "cargo.lock": "toml", "poetry.lock": "toml", "uv.lock": "toml", "pdm.lock": "toml", "gopkg.lock": "toml",
+        "requirements.txt": "ignore", "constraints.txt": "ignore", "codeowners": "ignore", "hosts": "ignore", ".prettierignore": "ignore", ".eslintignore": "ignore", ".npmignore": "ignore", ".helmignore": "ignore", ".gcloudignore": "ignore",
+        "cmakecache.txt": "properties", "authors": "plaintext", "changelog": "markdown", "contributing": "markdown", "copying": "plaintext", "notice": "plaintext", "todo": "markdown"
     ]
 }
