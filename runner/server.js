@@ -125,7 +125,7 @@ function findLang(name) {
 }
 
 function fill(args, vars) {
-  return args.map(a => a.replace("{file}", vars.file).replace(/\{dir\}/g, vars.dir));
+  return args.map(a => a.replace(/\{file\}/g, () => vars.file).replace(/\{dir\}/g, () => vars.dir));
 }
 
 function exec(cmd, { cwd, stdin, timeout }) {
